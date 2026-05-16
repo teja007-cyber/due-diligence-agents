@@ -25,18 +25,6 @@ def _normalize(text: str) -> str:
     return text
 
 
-def _get_text_path(source_path: str, text_dir: str | Path) -> Path:
-    """Convert original file path to extracted text path.
-
-    Uses the extraction pipeline's ``_safe_text_name`` helper so that
-    long filenames are truncated with a hash suffix consistently.
-    """
-    from dd_agents.extraction.pipeline import ExtractionPipeline
-
-    safe_name = ExtractionPipeline._safe_text_name(source_path)
-    return Path(text_dir) / safe_name
-
-
 def _find_page_number(text: str, char_offset: int) -> int | None:
     """Determine the page number for *char_offset* using ``--- Page N ---`` markers.
 
@@ -72,6 +60,7 @@ def verify_citation(
     files_list: list[str],
     text_dir: str | Path,
     allowed_dir: str | Path | None = None,
+    data_room_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Verify that a citation's source exists and quote can be found.
 
@@ -124,7 +113,18 @@ def verify_citation(
         }
 
     # Locate extracted text file
-    text_path = _get_text_path(source_path, text_dir)
+    from dd_agents.tools._text_lookup import resolve_text_path
+
+    text_path = resolve_text_path(source_path, text_dir, data_room_path=data_room_path)
+
+    if text_path is None:
+        return {
+            "found": False,
+            "reason": (
+                f"Extracted text not found for '{source_path}'. "
+                f"Source file exists in inventory but no extracted text available."
+            ),
+        }
 
     # Path containment check — prevent agents from reading outside data room.
     # When called via MCP server, allowed_dir is always set by _build_runtime_context.
@@ -136,15 +136,6 @@ def verify_citation(
                 return {"found": False, "reason": "Path traversal blocked: text file is outside the allowed directory"}
         except (OSError, ValueError):
             return {"found": False, "reason": "Invalid text path"}
-
-    if not text_path.exists():
-        return {
-            "found": False,
-            "reason": (
-                f"Extracted text not found at {text_path}. "
-                f"Source file exists in inventory but no extracted text available."
-            ),
-        }
 
     text = text_path.read_text(encoding="utf-8")
     norm_text = _normalize(text)

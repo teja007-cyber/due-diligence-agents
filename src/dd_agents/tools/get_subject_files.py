@@ -81,11 +81,9 @@ def _file_metadata(
 
     # Extraction status — check if .md text exists.
     if text_dir:
-        from dd_agents.extraction.pipeline import ExtractionPipeline
+        from dd_agents.tools._text_lookup import resolve_text_path
 
-        safe_name = ExtractionPipeline._safe_text_name(file_path)
-        text_path = Path(text_dir) / safe_name
-        meta["extracted"] = text_path.exists()
+        meta["extracted"] = resolve_text_path(file_path, text_dir, data_room_path=data_room_path) is not None
 
     # Precedence score if available.
     if file_precedence:

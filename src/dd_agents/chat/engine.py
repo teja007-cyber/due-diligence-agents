@@ -75,15 +75,20 @@ class ChatConfig(BaseModel):
 
     model: str | None = Field(default=None, description="Model override (None = SDK default)")
     max_turns_per_query: int = Field(
-        default=50,
+        default=200,
         ge=1,
-        le=200,
+        le=500,
         description="Max tool-use turns per query() call",
     )
-    max_cost_per_turn: float = Field(default=0.50, description="Per-turn budget in USD")
-    max_session_cost: float = Field(default=2.00, description="Total session budget in USD")
+    max_cost_per_turn: float = Field(default=2.00, description="Per-turn budget in USD")
+    max_session_cost: float = Field(default=10.00, description="Total session budget in USD")
     max_history_chars: int = Field(default=80_000, description="Max conversation history chars")
     enable_tools: bool = Field(default=True, description="Enable document analysis MCP tools")
+    no_limit: bool = Field(
+        default=False,
+        description="Remove per-turn caps (max_turns=500, per-turn budget=session budget). "
+        "Session cost (--max-cost) remains the only hard brake.",
+    )
     verbose: bool = Field(default=False, description="Show tool usage in output")
 
 
@@ -413,14 +418,30 @@ class ChatEngine:
             # Return the text we have rather than a generic error.
             logger.debug("Clearing sdk_error: got ResultMessage subtype=%s", result_subtype)
             sdk_error = None
+        elif sdk_error and (final_text_parts or (text_parts and msg_count >= 10)):
+            # The socket dropped mid-query (e.g. API timeout) but the
+            # agent collected substantial work before the crash.  Return
+            # the partial text with a warning rather than discarding it.
+            logger.info(
+                "SDK crashed after %d messages but collected %d text fragments — returning partial result",
+                msg_count,
+                len(final_text_parts) + len(text_parts),
+            )
+            sdk_error = None
+            _partial_warning = (
+                "\n\n---\n*The connection was interrupted before the analysis "
+                "completed. The results above are partial — ask a follow-up "
+                "question to continue.*"
+            )
+            if final_text_parts:
+                final_text_parts.append(_partial_warning)
+            else:
+                text_parts.append(_partial_warning)
 
         # Prefer text from pure-text messages (the final answer).
-        # When the SDK crashes mid-query, both text_parts AND
-        # final_text_parts may contain intermediate reasoning — the
-        # model sends reasoning in messages without tool_use blocks
-        # between tool calls.  If the SDK errored, the agent never
-        # finished, so ALL collected text is incomplete.  Discard it
-        # and show the error.
+        # When the SDK crashes early (< 10 messages, no useful text),
+        # both text_parts AND final_text_parts are likely empty or
+        # contain only setup reasoning — show the error instead.
         if sdk_error:
             # Include diagnostic info for verbose mode
             stderr_lines = getattr(self, "_last_stderr_lines", [])
@@ -555,10 +576,17 @@ class ChatEngine:
                 stderr_lines.append(line)
             logger.debug("SDK stderr: %s", line.rstrip())
 
+        if self._config.no_limit:
+            effective_turns = 500
+            effective_budget = max_budget
+        else:
+            effective_turns = self._config.max_turns_per_query
+            effective_budget = min(self._config.max_cost_per_turn, max_budget)
+
         options_kwargs: dict[str, Any] = {
             "system_prompt": self._system_prompt,
-            "max_turns": self._config.max_turns_per_query,
-            "max_budget_usd": min(self._config.max_cost_per_turn, max_budget),
+            "max_turns": effective_turns,
+            "max_budget_usd": effective_budget,
             "permission_mode": "bypassPermissions",
             "cwd": str(self._project_dir),
             "allowed_tools": self._get_allowed_tools(),

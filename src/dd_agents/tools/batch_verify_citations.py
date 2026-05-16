@@ -19,6 +19,7 @@ def batch_verify_citations(
     files_list: list[str],
     text_dir: str | Path,
     allowed_dir: str | Path | None = None,
+    data_room_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Verify multiple citations in a single call.
 
@@ -41,6 +42,7 @@ def batch_verify_citations(
             files_list=files_list,
             text_dir=text_dir,
             allowed_dir=allowed_dir,
+            data_room_path=data_room_path,
         )
         results.append(result)
         if result.get("found"):

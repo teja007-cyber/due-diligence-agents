@@ -44,6 +44,7 @@ def read_office(
     sheet_name: str | None = None,
     text_dir: str | None = None,
     allowed_dir: str | None = None,
+    data_room_path: str | None = None,
 ) -> dict[str, Any]:
     """Read a binary Office file and return its content as structured text.
 
@@ -107,7 +108,7 @@ def read_office(
         logger.debug("Primary read failed for %s: %s", file_path, exc)
 
     # Fallback: pre-extracted text from index/text/
-    fallback = _try_extracted_fallback(file_path, text_dir)
+    fallback = _try_extracted_fallback(file_path, text_dir, data_room_path)
     if fallback is not None:
         return {
             "status": "ok",
@@ -348,28 +349,17 @@ def _read_with_markitdown(path: Path) -> str:
 def _try_extracted_fallback(
     file_path: str,
     text_dir: str | None,
+    data_room_path: str | None = None,
 ) -> str | None:
     """Try to read pre-extracted markdown from the text index directory."""
     if not text_dir:
         return None
 
-    text_dir_path = Path(text_dir)
-    if not text_dir_path.is_dir():
-        return None
+    from dd_agents.tools._text_lookup import resolve_text_path
 
-    # Try full-path convention first (matches extraction pipeline)
-    from dd_agents.extraction.pipeline import ExtractionPipeline
-
-    safe_name = ExtractionPipeline._safe_text_name(file_path)
-    extracted = text_dir_path / safe_name
-    if extracted.exists():
-        return extracted.read_text(encoding="utf-8")
-
-    # Try filename-only (handles absolute paths passed at runtime)
-    basename = Path(file_path).name
-    simple = text_dir_path / f"{basename}.md"
-    if simple.exists():
-        return simple.read_text(encoding="utf-8")
+    text_path = resolve_text_path(file_path, text_dir, data_room_path=data_room_path)
+    if text_path is not None:
+        return text_path.read_text(encoding="utf-8")
 
     return None
 

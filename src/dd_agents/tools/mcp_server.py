@@ -223,6 +223,7 @@ def build_mcp_server(
         _vc_files_list = files_list or []
         _vc_text_dir = str(text_dir) if text_dir else ""
         _vc_allowed_dir = str(allowed_dir) if allowed_dir else None
+        _vc_data_room = str(data_room_path) if data_room_path else None
 
         @tool(
             "verify_citation",
@@ -249,6 +250,7 @@ def build_mcp_server(
                 files_list=_vc_files_list,
                 text_dir=_vc_text_dir,
                 allowed_dir=_vc_allowed_dir,
+                data_room_path=_vc_data_room,
             )
 
         tools.append(verify_citation_tool)
@@ -314,6 +316,7 @@ def build_mcp_server(
 
         _ro_text_dir = str(text_dir) if text_dir else None
         _ro_allowed_dir = str(allowed_dir) if allowed_dir else None
+        _ro_data_room = str(data_room_path) if data_room_path else None
 
         @tool(
             "read_office",
@@ -337,6 +340,7 @@ def build_mcp_server(
                 sheet_name=input_data.get("sheet_name"),
                 text_dir=_ro_text_dir,
                 allowed_dir=_ro_allowed_dir,
+                data_room_path=_ro_data_room,
             )
 
         tools.append(read_office_tool)
@@ -350,6 +354,7 @@ def build_mcp_server(
 
         _sif_text_dir = str(text_dir) if text_dir else ""
         _sif_allowed_dir = str(allowed_dir) if allowed_dir else None
+        _sif_data_room = str(data_room_path) if data_room_path else None
 
         @tool(
             "search_in_file",
@@ -386,6 +391,7 @@ def build_mcp_server(
                 case_sensitive=input_data.get("case_sensitive", False),
                 max_results=input_data.get("max_results", 20),
                 allowed_dir=_sif_allowed_dir,
+                data_room_path=_sif_data_room,
             )
 
         tools.append(search_in_file_tool)
@@ -395,6 +401,7 @@ def build_mcp_server(
 
         _gpc_text_dir = str(text_dir) if text_dir else ""
         _gpc_allowed_dir = str(allowed_dir) if allowed_dir else None
+        _gpc_data_room = str(data_room_path) if data_room_path else None
 
         @tool(
             "get_page_content",
@@ -426,6 +433,7 @@ def build_mcp_server(
                 start_page=input_data.get("start_page", 1),
                 end_page=input_data.get("end_page"),
                 allowed_dir=_gpc_allowed_dir,
+                data_room_path=_gpc_data_room,
             )
 
         tools.append(get_page_content_tool)
@@ -436,6 +444,7 @@ def build_mcp_server(
         _bvc_files_list = files_list or []
         _bvc_text_dir = str(text_dir) if text_dir else ""
         _bvc_allowed_dir = str(allowed_dir) if allowed_dir else None
+        _bvc_data_room = str(data_room_path) if data_room_path else None
 
         @tool(
             "batch_verify_citations",
@@ -466,6 +475,7 @@ def build_mcp_server(
                 files_list=_bvc_files_list,
                 text_dir=_bvc_text_dir,
                 allowed_dir=_bvc_allowed_dir,
+                data_room_path=_bvc_data_room,
             )
 
         tools.append(batch_verify_citations_tool)

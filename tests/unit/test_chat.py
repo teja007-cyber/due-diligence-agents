@@ -529,11 +529,25 @@ class TestChatEngine:
         assert (project_dir / "_dd" / "forensic-dd" / "chat").is_dir()
 
     def test_default_max_turns_high_enough_for_document_analysis(self) -> None:
-        """Default max_turns_per_query must be >= 50 for complex document analysis."""
+        """Default max_turns_per_query must be >= 200 for complex document analysis."""
         from dd_agents.chat.engine import ChatConfig
 
         config = ChatConfig()
-        assert config.max_turns_per_query >= 50
+        assert config.max_turns_per_query >= 200
+
+    def test_default_session_cost_sufficient(self) -> None:
+        """Default session cost must be >= $10 for heavy analysis sessions."""
+        from dd_agents.chat.engine import ChatConfig
+
+        config = ChatConfig()
+        assert config.max_session_cost >= 10.0
+
+    def test_default_per_turn_cost_sufficient(self) -> None:
+        """Per-turn cost must be >= $2 for long multi-tool turns."""
+        from dd_agents.chat.engine import ChatConfig
+
+        config = ChatConfig()
+        assert config.max_cost_per_turn >= 2.0
 
     def test_buffer_size_has_hard_cap(self, run_dir: Path, project_dir: Path) -> None:
         """Buffer size must be capped to prevent multi-GB allocations."""

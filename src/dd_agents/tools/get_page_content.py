@@ -13,14 +13,6 @@ from typing import Any
 from dd_agents.search.chunker import PAGE_MARKER_RE
 
 
-def _get_text_path(source_path: str, text_dir: str | Path) -> Path:
-    """Convert original file path to extracted text path."""
-    from dd_agents.extraction.pipeline import ExtractionPipeline
-
-    safe_name = ExtractionPipeline._safe_text_name(source_path)
-    return Path(text_dir) / safe_name
-
-
 def _split_pages(text: str) -> dict[int, str]:
     """Split text into page-number → content mapping.
 
@@ -51,6 +43,7 @@ def get_page_content(
     start_page: int = 1,
     end_page: int | None = None,
     allowed_dir: str | Path | None = None,
+    data_room_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Extract page content from the extracted text of *source_path*.
 
@@ -68,7 +61,26 @@ def get_page_content(
     if not source_path:
         return {"error": "invalid_input", "reason": "Empty source_path"}
 
-    text_path = _get_text_path(source_path, text_dir)
+    # Path containment pre-check — block traversal attempts before lookup.
+    if allowed_dir and ".." in source_path:
+        try:
+            from dd_agents.extraction.pipeline import ExtractionPipeline
+
+            naive = (Path(text_dir) / ExtractionPipeline._safe_text_name(source_path)).resolve()
+            if not naive.is_relative_to(Path(allowed_dir).resolve()):
+                return {"error": "blocked", "reason": "Path traversal blocked"}
+        except (OSError, ValueError):
+            return {"error": "blocked", "reason": "Invalid text path"}
+
+    from dd_agents.tools._text_lookup import resolve_text_path
+
+    text_path = resolve_text_path(source_path, text_dir, data_room_path=data_room_path)
+
+    if text_path is None:
+        return {
+            "error": "not_found",
+            "reason": f"No extracted text for '{source_path}'",
+        }
 
     # Path containment check.
     if allowed_dir:
@@ -79,12 +91,6 @@ def get_page_content(
                 return {"error": "blocked", "reason": "Path traversal blocked"}
         except (OSError, ValueError):
             return {"error": "blocked", "reason": "Invalid text path"}
-
-    if not text_path.exists():
-        return {
-            "error": "not_found",
-            "reason": f"No extracted text for '{source_path}'",
-        }
 
     text = text_path.read_text(encoding="utf-8")
     all_pages = _split_pages(text)

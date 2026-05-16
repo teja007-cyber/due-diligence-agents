@@ -37,14 +37,6 @@ def _find_page_number(text: str, char_offset: int) -> int | None:
     return page_num
 
 
-def _get_text_path(source_path: str, text_dir: str | Path) -> Path:
-    """Convert original file path to extracted text path."""
-    from dd_agents.extraction.pipeline import ExtractionPipeline
-
-    safe_name = ExtractionPipeline._safe_text_name(source_path)
-    return Path(text_dir) / safe_name
-
-
 def search_in_file(
     source_path: str,
     query: str,
@@ -53,6 +45,7 @@ def search_in_file(
     case_sensitive: bool = False,
     max_results: int = _MAX_RESULTS,
     allowed_dir: str | Path | None = None,
+    data_room_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Search within extracted text of *source_path* for *query*.
 
@@ -73,9 +66,28 @@ def search_in_file(
     if not query:
         return {"error": "invalid_input", "reason": "Empty query"}
 
-    text_path = _get_text_path(source_path, text_dir)
+    # Path containment pre-check — block traversal attempts before lookup.
+    if allowed_dir and ".." in source_path:
+        try:
+            from dd_agents.extraction.pipeline import ExtractionPipeline
 
-    # Path containment check.
+            naive = (Path(text_dir) / ExtractionPipeline._safe_text_name(source_path)).resolve()
+            if not naive.is_relative_to(Path(allowed_dir).resolve()):
+                return {"error": "blocked", "reason": "Path traversal blocked"}
+        except (OSError, ValueError):
+            return {"error": "blocked", "reason": "Invalid text path"}
+
+    from dd_agents.tools._text_lookup import resolve_text_path
+
+    text_path = resolve_text_path(source_path, text_dir, data_room_path=data_room_path)
+
+    if text_path is None:
+        return {
+            "error": "not_found",
+            "reason": f"No extracted text for '{source_path}'",
+        }
+
+    # Path containment check on resolved file.
     if allowed_dir:
         try:
             resolved = text_path.resolve()
@@ -84,12 +96,6 @@ def search_in_file(
                 return {"error": "blocked", "reason": "Path traversal blocked"}
         except (OSError, ValueError):
             return {"error": "blocked", "reason": "Invalid text path"}
-
-    if not text_path.exists():
-        return {
-            "error": "not_found",
-            "reason": f"No extracted text for '{source_path}'",
-        }
 
     text = text_path.read_text(encoding="utf-8")
 

@@ -1418,9 +1418,23 @@ def _run_chat_query(
     "--max-cost",
     "max_cost",
     type=float,
-    default=2.0,
+    default=10.0,
     show_default=True,
     help="Maximum session cost in USD.",
+)
+@click.option(
+    "--max-turns",
+    "max_turns",
+    type=int,
+    default=None,
+    help="Max tool-use turns per question (default: 200, max: 500).",
+)
+@click.option(
+    "--no-limit",
+    "no_limit",
+    is_flag=True,
+    default=False,
+    help="Remove per-turn caps for complex tasks. Session cost (--max-cost) remains the only hard brake.",
 )
 @click.option(
     "--no-tools",
@@ -1440,6 +1454,8 @@ def chat(
     report_dir: Path | None,
     model: str | None,
     max_cost: float,
+    max_turns: int | None,
+    no_limit: bool,
     no_tools: bool,
     verbose: bool,
 ) -> None:
@@ -1454,7 +1470,7 @@ def chat(
         dd-agents chat
         dd-agents chat --report _dd/forensic-dd/runs/latest
         dd-agents chat --no-tools
-        dd-agents chat --max-cost 5.0 --model claude-sonnet-4-6
+        dd-agents chat --no-limit --max-cost 25.0
     """
     if verbose:
         logging.basicConfig(level=logging.WARNING, format="%(name)s: %(message)s")
@@ -1490,12 +1506,16 @@ def chat(
     else:
         project_dir = report_dir.parent
 
-    config = ChatConfig(
-        model=model,
-        max_session_cost=max_cost,
-        enable_tools=not no_tools,
-        verbose=verbose,
-    )
+    config_kwargs: dict[str, Any] = {
+        "model": model,
+        "max_session_cost": max_cost,
+        "enable_tools": not no_tools,
+        "no_limit": no_limit,
+        "verbose": verbose,
+    }
+    if max_turns is not None:
+        config_kwargs["max_turns_per_query"] = min(max(max_turns, 1), 500)
+    config = ChatConfig(**config_kwargs)
 
     try:
         engine = ChatEngine(
@@ -1509,6 +1529,8 @@ def chat(
 
     # Print banner
     mode_label = "findings + documents" if config.enable_tools else "findings only"
+    if no_limit:
+        mode_label += ", no-limit"
     memory_note = f", {engine.memory_count} memories" if engine.memory_count > 0 else ""
     console.print()
     console.print(

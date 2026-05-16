@@ -337,7 +337,9 @@ dd-agents chat [OPTIONS]
 |--------|------|---------|-------------|
 | `--report` | Path | `runs/latest` | Path to the pipeline run directory |
 | `--model` | String | SDK default | Override the LLM model (e.g. `claude-sonnet-4-6`) |
-| `--max-cost` | Float | 2.00 | Maximum session cost in USD |
+| `--max-cost` | Float | 10.00 | Maximum session cost in USD |
+| `--max-turns` | Int | 200 | Max tool-use turns per question (max: 500) |
+| `--no-limit` | Flag | Off | Remove per-turn caps for complex tasks (session cost is the only brake) |
 | `--no-tools` | Flag | Off | Disable document tools (findings-only mode) |
 | `--verbose / -v` | Flag | Off | Enable verbose logging |
 
@@ -360,8 +362,11 @@ dd-agents chat --report _dd/forensic-dd/runs/latest
 # Findings-only mode (no document tools, faster responses)
 dd-agents chat --no-tools
 
+# Unlimited turns for heavy analysis (set cost cap as safety brake)
+dd-agents chat --no-limit --max-cost 25.0
+
 # Higher budget with specific model
-dd-agents chat --max-cost 5.0 --model claude-sonnet-4-6
+dd-agents chat --max-cost 20.0 --model claude-sonnet-4-6
 ```
 
 ---
