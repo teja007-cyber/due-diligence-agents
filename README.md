@@ -17,7 +17,9 @@
 
 ---
 
-https://github.com/user-attachments/assets/44322675-2f3e-4401-9e6b-e248c68c08f6
+
+https://github.com/user-attachments/assets/03ae7e38-8280-488c-898a-61c1a361bb7d
+
 
 **[See a sample report](https://zoharbabin.github.io/due-diligence-agents/)** — interactive HTML output from a synthetic deal, no install required.
 
