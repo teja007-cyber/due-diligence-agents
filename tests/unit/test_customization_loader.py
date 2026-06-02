@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from dd_agents.customization.loader import (
     CustomizationError,
     PersonaLayer,
@@ -14,7 +15,6 @@ from dd_agents.customization.loader import (
     parse_persona_file,
     resolve_chain,
 )
-
 from dd_agents.models.config import AgentCustomization
 
 PROFILES_DIR = Path(__file__).resolve().parents[2] / "src" / "dd_agents" / "customization" / "profiles"
