@@ -128,9 +128,13 @@ class AgentRegistry:
                 descriptor = AgentRegistry.get(name)
                 runner = descriptor.agent_class(project_dir=placeholder, run_dir=placeholder, run_id="provenance")
                 texts[name] = runner.get_system_prompt()
+                # Record the PER-AGENT safety floor too. assemble_safety_floor()
+                # embeds build_citation_mandate(agent_type), whose examples differ
+                # per agent — so a change to (e.g.) Finance citation examples must
+                # bust this agent's provenance, not just legal's (Copilot #202 C3).
+                texts[f"_SAFETY_FLOOR::{name}"] = assemble_safety_floor(name)
             except Exception:  # noqa: BLE001 — provenance must never crash a run
                 logger.warning("Could not collect persona text for agent '%s'", name, exc_info=True)
-        texts["_SAFETY_FLOOR"] = assemble_safety_floor("legal")
         return texts
 
     @staticmethod

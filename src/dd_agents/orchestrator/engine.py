@@ -2987,17 +2987,34 @@ class PipelineEngine:
             raw = files_txt.read_text(encoding="utf-8").strip()
             file_inventory = [line.strip() for line in raw.splitlines() if line.strip()]
 
-        # Extract per-agent user severity overrides + AD-3a bound from the
-        # (untyped) deal_config dict. The single severity resolver applies them
-        # deterministically at merge time (audit AD-3 / §1.2b).
+        # Per-agent user severity overrides + AD-3a bound. The single severity
+        # resolver applies these deterministically at merge time (audit AD-3 /
+        # §1.2b). Source them from the FULL resolved customization chain
+        # (bundled profile `extends` → dd-config/agents/{agent}.md → inline
+        # deal-config) so markdown `## Severity Overrides` are first-class here
+        # and not merely prompt hints (Copilot review #202 C1).
         specialists_cfg = (state.deal_config or {}).get("forensic_dd", {}).get("specialists", {})
-        customizations = specialists_cfg.get("customizations", {})
-        user_overrides_by_agent = {
-            agent: cust["severity_overrides"]
-            for agent, cust in customizations.items()
-            if isinstance(cust, dict) and cust.get("severity_overrides")
-        }
         allow_downgrade = bool(specialists_cfg.get("allow_user_downgrade_of_dealbreakers", False))
+
+        from dd_agents.agents.prompt_builder import resolve_agent_customization
+        from dd_agents.agents.registry import AgentRegistry
+
+        # Coerce the raw deal_config dict to a DealConfig for resolution; on
+        # failure fall back to None (resolution then uses dd-config only).
+        _deal_cfg_obj = None
+        if state.deal_config:
+            try:
+                from dd_agents.models.config import DealConfig as _DealConfig
+
+                _deal_cfg_obj = _DealConfig.model_validate(state.deal_config)
+            except Exception:  # noqa: BLE001 — best-effort; dd-config still resolves
+                _deal_cfg_obj = None
+
+        user_overrides_by_agent: dict[str, dict[str, str]] = {}
+        for agent_name in AgentRegistry.all_specialist_names():
+            resolved = resolve_agent_customization(self.project_dir, _deal_cfg_obj, agent_name)
+            if resolved is not None and resolved.severity_overrides:
+                user_overrides_by_agent[agent_name] = dict(resolved.severity_overrides)
 
         merger = FindingMerger(
             run_id=state.run_id,

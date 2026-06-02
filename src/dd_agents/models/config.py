@@ -256,9 +256,13 @@ class SpecialistsConfig(BaseModel):
         default=False,
         description=(
             "Safety bound for user severity_overrides (audit AD-3a). When False "
-            "(default), a user override may not lower a P0 finding below P1, and "
-            "can never lower a tamper/integrity finding. Set True to allow "
-            "unconstrained user downgrades."
+            "(default), a user override may not downgrade a deal-breaker finding "
+            "(one currently at P0 or P1) below the P1 floor. When True, such a "
+            "downgrade is permitted but is still CLAMPED to P1 — never below — so "
+            "a genuine deal-breaker can never be silenced. A tamper/integrity "
+            "finding is never downgradable in either mode. Escalations are always "
+            "allowed, and non-deal-breaker findings (P2/P3) can be freely "
+            "re-ranked regardless of this flag."
         ),
     )
 

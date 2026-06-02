@@ -69,10 +69,15 @@ def test_provenance_hash_stable_for_identical_inputs() -> None:
     assert compute_provenance_hash("c", "v", personas) == compute_provenance_hash("c", "v", dict(personas))
 
 
-def test_collect_persona_texts_includes_safety_floor() -> None:
+def test_collect_persona_texts_includes_per_agent_safety_floor() -> None:
     from dd_agents.agents.registry import AgentRegistry
 
-    texts = AgentRegistry.collect_persona_texts(["legal"])
-    assert "_SAFETY_FLOOR" in texts
+    texts = AgentRegistry.collect_persona_texts(["legal", "finance"])
     assert "legal" in texts
-    assert "MANDATORY Citation Requirements" in texts["_SAFETY_FLOOR"]
+    # Per-agent safety-floor entries embed each agent's citation mandate, so
+    # per-agent citation-example drift busts that agent's provenance hash.
+    assert "_SAFETY_FLOOR::legal" in texts
+    assert "_SAFETY_FLOOR::finance" in texts
+    assert "MANDATORY Citation Requirements" in texts["_SAFETY_FLOOR::legal"]
+    # The legal and finance citation examples differ, so the floors differ.
+    assert texts["_SAFETY_FLOOR::legal"] != texts["_SAFETY_FLOOR::finance"]

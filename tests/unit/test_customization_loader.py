@@ -243,3 +243,24 @@ def test_pathological_yaml_raises_clean_error(tmp_path: Path) -> None:
     f.write_text("---\na: " + ("[" * 9000) + "\n---\n", encoding="utf-8")
     with pytest.raises(CustomizationError):
         parse_persona_file(f)
+
+
+def test_resolve_chain_fails_closed_on_agent_filename_mismatch(tmp_path: Path) -> None:
+    """Regression (Copilot #202 C4): a file whose front-matter agent: != filename
+    must be rejected, matching the validator — never silently applied."""
+    agents = tmp_path / "agents"
+    agents.mkdir(parents=True)
+    (agents / "legal.md").write_text("---\nagent: finance\n---\n## Persona (replaces default)\nx\n", encoding="utf-8")
+    with pytest.raises(CustomizationError):
+        resolve_chain("legal", tmp_path, None, PROFILES_DIR)
+
+
+def test_resolve_chain_allows_wildcard_and_matching_agent(tmp_path: Path) -> None:
+    agents = tmp_path / "agents"
+    agents.mkdir(parents=True)
+    # matching stem is fine
+    (agents / "legal.md").write_text(
+        "---\nagent: legal\n---\n## Severity Overrides\n- change_of_control: P1\n", encoding="utf-8"
+    )
+    r = resolve_chain("legal", tmp_path, None, PROFILES_DIR)
+    assert r.customization.severity_overrides == {"change_of_control": "P1"}

@@ -289,6 +289,15 @@ def resolve_chain(
         agent_file = dd_config_dir / "agents" / f"{agent}.md"
         if agent_file.exists():
             agent_file_layer = parse_persona_file(agent_file)
+            # Fail-closed on an agent/filename mismatch — matches the validator,
+            # so a legal.md that declares `agent: finance` is never silently
+            # applied to the legal agent (Copilot #202 C4). "*" is allowed
+            # (profile-style wildcard). None means undeclared (allowed).
+            declared = agent_file_layer.agent
+            if declared is not None and declared not in (agent, "*"):
+                raise CustomizationError(
+                    f"agent: '{declared}' in {agent}.md front-matter does not match filename '{agent}'."
+                )
 
     # Resolve the profile chain declared by the agent file's `extends`.
     if agent_file_layer is not None and agent_file_layer.extends is not None:
