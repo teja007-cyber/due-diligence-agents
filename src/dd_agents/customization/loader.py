@@ -86,8 +86,10 @@ def _split_front_matter(text: str) -> tuple[dict[str, object], str]:
     body = "\n".join(lines[closing + 1 :])
     try:
         parsed = yaml.safe_load(fm_text) if fm_text.strip() else {}
-    except yaml.YAMLError as exc:
-        raise CustomizationError(f"Malformed YAML front-matter: {exc}") from exc
+    except (yaml.YAMLError, RecursionError) as exc:
+        # RecursionError: pathologically nested YAML (e.g. thousands of '['),
+        # a DoS vector for the lint command. Surface as a clean config error.
+        raise CustomizationError(f"Malformed YAML front-matter: {type(exc).__name__}") from exc
     if parsed is None:
         parsed = {}
     if not isinstance(parsed, dict):
@@ -141,7 +143,12 @@ def parse_persona_file(path: Path) -> PersonaLayer:
         raise CustomizationError(f"Cannot read persona file '{path}': {exc}") from exc
 
     content_hash = hashlib.sha256(raw_bytes).hexdigest()
-    text = raw_bytes.decode("utf-8")
+    try:
+        text = raw_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        # Binary or non-UTF-8 file dropped into dd-config/agents/ — fail closed
+        # with a clean config error rather than leaking a decode traceback.
+        raise CustomizationError(f"Persona file '{path.name}' is not valid UTF-8 text.") from exc
 
     front_matter, body = _split_front_matter(text)
     unknown_keys = set(front_matter) - _ALLOWED_FRONT_MATTER_KEYS

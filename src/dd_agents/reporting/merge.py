@@ -603,7 +603,9 @@ class FindingMerger:
         )
         winner = dict(sorted_group[0])
         winner.setdefault("metadata", {})
-        winner["metadata"]["contributing_agents"] = [a for a in {f.get("agent", "") for f in group} if a]
+        # sorted() for deterministic output ordering (set iteration order is
+        # non-deterministic and produced diff noise across otherwise-identical runs).
+        winner["metadata"]["contributing_agents"] = sorted({f.get("agent", "") for f in group} - {""})
         return winner
 
     def _source_precedence(self, finding: dict[str, Any]) -> float:

@@ -227,3 +227,19 @@ def test_bundled_profiles_parse() -> None:
     for name in ("saas", "regulated-fintech", "asset-purchase", "carve-out"):
         layer = parse_persona_file(PROFILES_DIR / f"{name}.md")
         assert isinstance(layer, PersonaLayer)
+
+
+def test_binary_persona_file_raises_clean_error(tmp_path: Path) -> None:
+    """Regression: a non-UTF-8 file must fail-closed, not leak UnicodeDecodeError."""
+    f = tmp_path / "legal.md"
+    f.write_bytes(b"\x80\x81\xffbinary")
+    with pytest.raises(CustomizationError):
+        parse_persona_file(f)
+
+
+def test_pathological_yaml_raises_clean_error(tmp_path: Path) -> None:
+    """Regression: deeply-nested YAML must fail-closed, not leak RecursionError."""
+    f = tmp_path / "legal.md"
+    f.write_text("---\na: " + ("[" * 9000) + "\n---\n", encoding="utf-8")
+    with pytest.raises(CustomizationError):
+        parse_persona_file(f)

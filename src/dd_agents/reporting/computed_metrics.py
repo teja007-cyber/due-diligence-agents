@@ -1219,9 +1219,18 @@ class ReportDataComputer:
             if not isinstance(gaps, list):
                 gaps = []
 
-            total_findings += len(findings)
+            # Count only material findings — exclude "domain_reviewed_no_issues"
+            # placeholders so the headline total matches the severity breakdown
+            # (which skips them at the severity loop below). The numerical
+            # manifest (N003) remains the authoritative cross-check.
+            counted_findings = [
+                f
+                for f in findings
+                if isinstance(f, dict) and str(f.get("category", "")).lower() != "domain_reviewed_no_issues"
+            ]
+            total_findings += len(counted_findings)
             total_gaps += len(gaps)
-            subject_finding_counts[csn] = len(findings)
+            subject_finding_counts[csn] = len(counted_findings)
 
             # Governance
             gov = data.get("governance_resolution_pct")

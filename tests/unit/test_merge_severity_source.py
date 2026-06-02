@@ -91,3 +91,21 @@ def test_computed_metrics_still_caps_legacy_finding() -> None:
     }
     out = ReportDataComputer._recalibrate_severity(legacy)
     assert out["severity"] == "P3"
+
+
+def test_contributing_agents_ordering_is_deterministic() -> None:
+    """Regression: merged contributing_agents must be sorted (set order was non-deterministic)."""
+    merger = FindingMerger(run_id="r")
+    # Same finding from multiple agents → they merge; contributing_agents must be sorted.
+    findings = [
+        _finding("Change of control requires consent", agent=a, category="change_of_control")
+        for a in ("legal", "commercial", "finance")
+    ]
+    merged = merger._deduplicate(findings)
+    # Find the merged record carrying contributing_agents.
+    contribs = [
+        m["metadata"]["contributing_agents"] for m in merged if m.get("metadata", {}).get("contributing_agents")
+    ]
+    assert contribs, "expected a merged finding with contributing_agents"
+    for c in contribs:
+        assert c == sorted(c), f"contributing_agents not sorted: {c}"

@@ -515,7 +515,7 @@ dd-agents log [OPTIONS]
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--data-room` | path | required | Path to the data room folder |
-| `--type` | string | all | Filter by interaction type (pipeline_run, search, query, annotation) |
+| `--type` | string | all | Filter by interaction type (pipeline_run, search, query, annotation, knowledge_compilation, chat) |
 | `--limit` | int | 20 | Maximum entries to display |
 
 **Examples:**

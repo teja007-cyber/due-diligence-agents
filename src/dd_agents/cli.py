@@ -2065,7 +2065,10 @@ def agents_preview(
 )
 @click.option("--limit", type=int, default=20, show_default=True, help="Number of recent entries to show.")
 @click.option(
-    "--type", "interaction_type", default=None, help="Filter by type: pipeline_run, search, query, annotation."
+    "--type",
+    "interaction_type",
+    default=None,
+    help="Filter by type: pipeline_run, search, query, annotation, knowledge_compilation, chat.",
 )
 def log_cmd(data_room: Path, limit: int, interaction_type: str | None) -> None:
     """Show the analysis chronicle — timeline of all interactions.
