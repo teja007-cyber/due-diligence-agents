@@ -135,11 +135,12 @@ class QueryEngine:
             from claude_agent_sdk import ClaudeAgentOptions
             from claude_agent_sdk import query as sdk_query
 
+            from dd_agents.agents.personas import DD_ANALYST
             from dd_agents.agents.prompt_constants import NO_FABRICATION
             from dd_agents.utils import resolve_sdk_cli_path
 
             prompt = (
-                f"You are a due diligence analyst. Answer the following question based on the findings below.\n\n"
+                f"{DD_ANALYST}. Answer the following question based on the findings below.\n\n"
                 f"QUESTION: {question}\n\n"
                 f"FINDINGS CONTEXT:\n{context}\n\n"
                 f"SUMMARY: {self.index.summary}\n\n"

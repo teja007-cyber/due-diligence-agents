@@ -711,6 +711,20 @@ class PromptBuilder:
             # beyond what SPECIALIST_FOCUS already provides.
             if descriptor.citation_examples:
                 sections.append(f"## CITATION EXAMPLES ({agent_name})\n\n{descriptor.citation_examples}")
+
+            # 5a-bis. Canonical focus areas (§3.1). The descriptor carries the
+            # authoritative focus_areas list; surface it (humanized) so the agent
+            # references the canonical taxonomy alongside the hand-written
+            # SPECIALIST_FOCUS sentence above.
+            if descriptor.focus_areas:
+                focus_lines = "\n".join(f"- {area.replace('_', ' ')}" for area in descriptor.focus_areas)
+                sections.append(f"## YOUR FOCUS AREAS (canonical)\n\n{focus_lines}")
+
+            # 5b. Domain-specific extraction guidance (descriptor field was captured at
+            # registration but never injected — audit §2.2). This carries each agent's
+            # keyword/extraction playbook (e.g. Legal CoC subtypes) into the prompt.
+            if descriptor.domain_robustness:
+                sections.append(descriptor.domain_robustness)
         except KeyError:
             pass  # Unknown agent — no descriptor supplement
 

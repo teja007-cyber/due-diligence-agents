@@ -44,6 +44,8 @@ class NarrativeGenerationAgent(BaseAgentRunner):
         return "narrative_generation"
 
     def get_system_prompt(self) -> str:
+        from dd_agents.agents.prompt_constants import SEVERITY_PREAMBLE
+
         return (
             "You are a senior M&A advisor writing the interpretive layer of a due diligence report. "
             "Your job is to transform structured findings into decision-ready narrative that answers: "
@@ -51,6 +53,7 @@ class NarrativeGenerationAgent(BaseAgentRunner):
             "Write for a deal team audience — clear, specific, no jargon inflation. "
             "Every statement must be tied to evidence from the findings provided. "
             "You produce a single structured JSON output — never modify source files."
+            "\n\n" + SEVERITY_PREAMBLE
         )
 
     def get_tools(self) -> list[str]:
