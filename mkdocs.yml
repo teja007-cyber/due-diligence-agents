@@ -58,6 +58,7 @@ nav:
     - CLI Reference: user-guide/cli-reference.md
     - Troubleshooting: user-guide/troubleshooting.md
   - Guides:
+    - How the Agents Work: agent-anatomy.md
     - Agent Customization: agent-customization.md
     - Contract Search: search-guide.md
     - Knowledge Architecture: knowledge-architecture.md

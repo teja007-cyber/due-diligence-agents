@@ -1,5 +1,9 @@
 # Agent Customization
 
+> **New here? Read [How the Agents Work](agent-anatomy.md) first.** It tours what
+> each agent is, what it looks for, and how its instructions are assembled — the
+> baseline this page teaches you to tune.
+
 Tune what the specialist agents focus on, how they phrase findings, and how
 they calibrate severity — without writing any code. You add guidance and adjust
 focus and severity. You cannot remove a safety rule; those are always enforced.
