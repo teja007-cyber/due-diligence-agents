@@ -33,6 +33,24 @@
 
 ---
 
+## Implementation outcome (what shipped)
+
+This plan was executed in waves; the architecture below is live. The single data flow is
+`config → prompt → findings → severity → report → provenance`, realized as: `dd-config/`
+markdown + deal-config merge via `customization/loader.py:resolve_chain` → prompt assembly in
+`agents/prompt_builder.py` ending with the non-removable `assemble_safety_floor()`
+(`agents/prompt_constants.py`) → one severity authority `reporting/severity_resolver.py:resolve_severity`
+→ report panel (`reporting/html_config_panel.py`) → provenance hash (`persistence/provenance.py`).
+Inspect any assembled prompt with `dd-agents agents preview`.
+
+**One proposal was deliberately NOT adopted:** the `§2.2`/`§6.3` "DomainGuidanceBuilder /
+`domain_guidance.py`" refactor. `domain_robustness()` stayed as Python in `specialists.py` and is
+injected in place at `prompt_builder.py` (which strips the trailing citation mandate). Do **not**
+build a parallel `domain_guidance.py` from the sections below — they record the original design
+exploration, not current structure.
+
+---
+
 ## 0. Map of the flow (where everything lives)
 
 | Layer | File | Role |
