@@ -19,7 +19,7 @@ Subject 1: Subject A (safe_name: Subject A)
 CRITICAL — OUTPUT FILENAMES:
 Your output filename MUST be exactly: {safe_name}.json
 Copy the safe_name character-for-character from above. Do NOT normalize, transform, or recompute it. The safe_name is pre-computed and authoritative.
-Write to: /Users/ZoharBabinM3/Downloads/due-diligence-agents/findings/commercial/{safe_name}.json
+Write to: <ROOT>/findings/commercial/{safe_name}.json
 
 TOTAL: 1 subjects. You must process every single one.
 
@@ -293,7 +293,7 @@ NEVER write a bare string as a gap entry. If you cannot fill all fields, still w
 
 ## COVERAGE MANIFEST
 
-You MUST write: /Users/ZoharBabinM3/Downloads/due-diligence-agents/findings/commercial/coverage_manifest.json
+You MUST write: <ROOT>/findings/commercial/coverage_manifest.json
 
 Expected subjects: 1
 coverage_pct must be >= 0.90

@@ -50,6 +50,9 @@ def main() -> None:
                 "deal": {"type": deal_type, "focus_areas": [agent]},
             }
             prompt = builder.build_specialist_prompt(agent, ["Subject A"], deal_config=cfg)
+            # Normalize the absolute run dir to a stable token so snapshots are
+            # environment-independent (matches test_prompt_golden_master._build).
+            prompt = prompt.replace(str(base), "<ROOT>")
             fn = f"{agent}__{deal_type}.txt"
             (spec_dir / fn).write_text(prompt, encoding="utf-8")
             spec_manifest[fn] = _sha(prompt)

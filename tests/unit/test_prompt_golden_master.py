@@ -41,7 +41,10 @@ def _build(agent: str, deal_type: str) -> str:
         "target": {"name": "T"},
         "deal": {"type": deal_type, "focus_areas": [agent]},
     }
-    return builder.build_specialist_prompt(agent, ["Subject A"], deal_config=cfg)
+    prompt = builder.build_specialist_prompt(agent, ["Subject A"], deal_config=cfg)
+    # The assembled prompt embeds the absolute run directory (Path.cwd()); normalize
+    # it to a stable token so the snapshot is environment-independent (local vs CI).
+    return prompt.replace(str(Path.cwd()), "<ROOT>")
 
 
 @pytest.mark.parametrize("agent", AgentRegistry.all_specialist_names())
