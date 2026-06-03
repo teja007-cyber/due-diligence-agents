@@ -1,4 +1,5 @@
 > **Historical design spec** — written during the build phase. The code in `src/dd_agents/` is the authoritative implementation. Key divergences: 38 steps (not 35), 9 specialists + 4 synthesis agents (not 4+2), no ReportingLead agent (replaced by deterministic `validation/pre_merge.py` in v0.4.0). Retained for design rationale only — see `CLAUDE.md` for current state.
+> **The §2–5 test-file listings are illustrative**, not a map of the real suite — see the actual `tests/unit/`, `tests/integration/`, `tests/evals/` trees (e.g. entity-resolution tests use `EntityResolver`, not `EntityMatcher`). The durable content here is the §1 test-pyramid strategy and the §8 cloud/cost guidance.
 
 # 15 — Testing Strategy and Deployment
 
@@ -709,218 +710,18 @@ def matcher():
 
 ---
 
-## 6. CI/CD
+## 6. CI/CD and 7. Docker (see the authoritative files)
 
-### 6.1 GitHub Actions
-
-```yaml
-# .github/workflows/ci.yml
-
-name: CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install ruff mypy
-      - run: ruff check src/ tests/
-      - run: ruff format --check src/ tests/
-      - run: mypy src/ --strict
-
-  test-unit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install -e ".[dev]"
-      - run: pytest tests/unit/ -v --tb=short --junitxml=results/unit.xml
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: unit-test-results
-          path: results/
-
-  test-integration:
-    runs-on: ubuntu-latest
-    needs: [lint, test-unit]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install -e ".[dev]"
-      - run: pytest tests/integration/ -v --tb=short -k "not test_agent_spawning"
-        # Skip tests requiring API key in CI
-
-  test-e2e:
-    runs-on: ubuntu-latest
-    needs: [test-integration]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install -e ".[dev]"
-      - run: pytest tests/e2e/ -v --tb=long -m "e2e"
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-```
-
-### 6.2 Pre-commit Hooks
-
-```yaml
-# .pre-commit-config.yaml
-
-repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.0
-    hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
-```
-
-### 6.3 CI/CD Acceptance Criteria
-
-**CI/CD acceptance criteria**: The CI pipeline passes when ALL of the following succeed: (1) `pytest tests/unit/` — all unit tests pass, (2) `mypy src/ --strict` — no type errors, (3) `ruff check src/ tests/` — no lint violations, (4) `pytest tests/integration/` — integration tests pass against sample data room. The pipeline fails-fast on the first failure. E2E tests (`tests/e2e/`) run on manual trigger only (they require LLM API access and cost money).
-
-### 6.4 pyproject.toml Test Configuration
-
-```toml
-# pyproject.toml (test section)
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-asyncio_mode = "auto"
-markers = [
-    "e2e: end-to-end tests (require API key, slow)",
-    "slow: tests that take more than 1 minute",
-]
-filterwarnings = [
-    "ignore::DeprecationWarning",
-]
-
-[tool.mypy]
-python_version = "3.12"
-strict = true
-warn_return_any = true
-warn_unused_configs = true
-
-[[tool.mypy.overrides]]
-module = ["chromadb.*", "markitdown.*"]
-ignore_missing_imports = true
-
-[tool.ruff]
-target-version = "py312"
-line-length = 120
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "SIM", "TCH"]
-```
-
----
-
-## 7. Docker
-
-### 7.1 Dockerfile
-
-```dockerfile
-# Dockerfile
-
-FROM python:3.12-slim AS base
-
-# System dependencies for document extraction
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    poppler-utils \
-    tesseract-ocr \
-    libtesseract-dev \
-    libmagic1 \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Node.js 18 LTS (required for markitdown, which uses a Node.js-based
-# PDF renderer as one of its extraction backends)
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create non-root user
-RUN useradd -m -s /bin/bash ddagent
-WORKDIR /app
-
-# Install Python dependencies
-COPY pyproject.toml .
-RUN pip install --no-cache-dir -e ".[vector]"
-
-# Copy source
-COPY src/ src/
-
-# Set ownership
-RUN chown -R ddagent:ddagent /app
-
-USER ddagent
-
-# Default data room mount point
-VOLUME ["/data-room"]
-
-# Entrypoint
-ENTRYPOINT ["dd-agents"]
-CMD ["run", "/data-room"]
-```
-
-### 7.2 Docker Compose (Development)
-
-```yaml
-# docker-compose.yml
-
-version: "3.9"
-
-services:
-  dd-agents:
-    build: .
-    volumes:
-      - ./test-data-room:/data-room:ro     # Mount data room read-only
-      - dd-output:/data-room/_dd            # Persist DD artifacts
-    environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - DD_LOG_LEVEL=INFO
-    command: ["run", "/data-room", "--mode", "full"]
-
-volumes:
-  dd-output:
-```
-
-### 7.3 Docker Usage
-
-```bash
-# Build
-docker build -t dd-agents .
-
-# Run with data room mounted
-docker run -v /path/to/data-room:/data-room \
-           -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-           dd-agents run /data-room
-
-# Run with budget limit
-docker run -v /path/to/data-room:/data-room \
-           -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-           dd-agents run /data-room --max-budget 10.00
-```
-
----
+> The CI YAML, pre-commit config, `pyproject.toml` test/lint blocks, and Dockerfile that
+> were reproduced here had drifted from the real files. Don't trust a copy — read the
+> sources, which are the single source of truth:
+>
+> - **CI** — `.github/workflows/ci.yml` (lint, mypy, unit tests on a 3.12 + 3.13 matrix,
+>   integration, build, Docker build, E2E/evals) and `release.yml` (PyPI + Docker + Homebrew + GitHub Release).
+> - **Pre-commit** — `.pre-commit-config.yaml`.
+> - **Test / lint / type config** — `[tool.pytest.ini_options]`, `[tool.mypy]`, `[tool.ruff]` in `pyproject.toml`.
+> - **Container** — `Dockerfile`, `docker-compose`/`DOCKERHUB.md`, and the Codespaces devcontainer.
+> - **Quality-gate command** — see `CLAUDE.md` → *Commands*.
 
 ## 8. Cloud Deployment
 

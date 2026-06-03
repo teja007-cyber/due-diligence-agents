@@ -1,6 +1,11 @@
 # 09 -- Entity Resolution (6-Pass Cascading Matcher)
 
-> **Historical design spec** — written during the build phase. The code in `src/dd_agents/entity_resolution/` is the authoritative implementation; retained for design rationale only. See `CLAUDE.md` for current state.
+> **Historical design spec** — written during the build phase. The 6-pass cascade
+> described here is real, but it lives in **`src/dd_agents/entity_resolution/matcher.py`**
+> (`EntityResolver`, `pass_1`…`pass_6`) — not the `preprocessing.py`/`passes.py`/`resolver.py`
+> split the code-fence headers below suggest. Other modules: `cache.py`, `dedup.py`,
+> `logging.py`, `safe_name.py`. Treat the file paths in code fences as illustrative; the
+> code is authoritative. See `CLAUDE.md` for current state.
 
 ## Overview
 
@@ -30,7 +35,7 @@ The primary matching direction is: **reference file names -> subjects.csv names*
 All names are normalized before any matching pass. Preprocessing is applied once and cached for all subsequent passes.
 
 ```python
-# src/dd_agents/entity/preprocessing.py
+# src/dd_agents/entity_resolution/preprocessing.py
 
 import re
 import unicodedata
@@ -158,7 +163,7 @@ For each name requiring resolution, passes are applied in order. Matching stops 
 ### Pass 1: Exact Match After Preprocessing
 
 ```python
-# src/dd_agents/entity/passes.py
+# src/dd_agents/entity_resolution/passes.py
 
 def pass_1_exact_match(
     preprocessed_source: str,
@@ -414,7 +419,7 @@ def is_excluded(
 The resolver coordinates all 6 passes, respects the exclusion list, consults the cache, and produces the match log.
 
 ```python
-# src/dd_agents/entity/resolver.py
+# src/dd_agents/entity_resolution/resolver.py
 
 import json
 import hashlib
@@ -821,7 +826,7 @@ For each entity name requiring resolution:
 When the `entity_aliases` config hash differs from the cached `config_hash`, the cache is NOT fully invalidated. Instead, a targeted diff determines which entries need re-resolution.
 
 ```python
-# src/dd_agents/entity/cache.py
+# src/dd_agents/entity_resolution/cache.py
 
 import json
 import hashlib

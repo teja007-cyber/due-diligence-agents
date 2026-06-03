@@ -1,6 +1,7 @@
 # 21 -- Contract Ontology, Graph-Based Reasoning, and Explainability
 
 > **Historical note**: This is a design spec. References to "Reporting Lead" describe an agent removed in v0.4.0. The specialist count grew from 4 to 9 via `AgentRegistry`. See `CLAUDE.md` for the current state.
+> **Sections 3–4 and 10 are ASPIRATIONAL — only partially built.** Implemented: `reasoning/contract_graph.py:ContractKnowledgeGraph` (NOT `ContractReasoningGraph`) with `find_conflicts()`, `coc_impact_analysis()`, `get_amendment_chain()`. **NOT implemented:** the reasoning-chain subsystem (`ReasoningChain`/verifiers/`chunking.py`/`citation_check.py`) and the `Reasoning_*` Excel columns — `reasoning/` contains only `__init__.py` + `contract_graph.py`. Treat `src/...` paths in those sections as historical intent. Durable: the research-grounded WHY.
 
 How the DD system understands contract language, maintains reasoning chains, and produces verifiable findings. This document defines the lightweight ontology for contract documents, the graph-based reasoning architecture, and the explainability framework that ensures every finding is traceable to source text.
 

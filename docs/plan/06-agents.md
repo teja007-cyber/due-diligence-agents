@@ -1,4 +1,5 @@
 > **Historical design spec** — written during the build phase. The code in `src/dd_agents/` is the authoritative implementation. Key divergences: 38 steps (not 35), 9 specialists + 4 synthesis agents (not 4+2), no ReportingLead agent (replaced by deterministic `validation/pre_merge.py` in v0.4.0). Retained for design rationale only — see `CLAUDE.md` for current state.
+> **Current agent set is 13 — see `AgentRegistry` and `agents/specialists.py`.** 9 specialists + Judge + Executive Synthesis + Red Flag Scanner (`agents/red_flag_scanner.py`) + Acquirer Intelligence. The per-agent 6-tool MCP list below is a historical subset (the server registers ~18 tools). Step numbers have drifted. Durable: the Judge 5-dimension weights, risk-based sampling, robustness mitigations.
 
 # 06 -- Agent Definitions
 

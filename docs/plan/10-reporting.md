@@ -1,4 +1,5 @@
 > **Historical design spec** — written during the build phase. The code in `src/dd_agents/` is the authoritative implementation. Key divergences: 38 steps (not 35), 9 specialists + 4 synthesis agents (not 4+2), no ReportingLead agent (replaced by deterministic `validation/pre_merge.py` in v0.4.0). Retained for design rationale only — see `CLAUDE.md` for current state.
+> **Step numbers below have drifted — see `orchestrator/steps.py`.** Merge is deterministic (the `Reporting Lead` merge sections describe the agent removed in v0.4.0). Severity is decided once by `reporting/severity_resolver.py:resolve_severity` (CLAUDE.md rule 12); `computed_metrics._recalibrate_severity` is now a read-only guard. **Verified current:** the risk-score formula and the 14-sheet schema.
 
 # 10 — Reporting (Excel Generation, Merge/Dedup, Report Diff, Date Reconciliation)
 

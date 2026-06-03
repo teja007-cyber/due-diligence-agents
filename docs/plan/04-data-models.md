@@ -1,4 +1,5 @@
 > **Historical design spec** — written during the build phase. The code in `src/dd_agents/` is the authoritative implementation. Key divergences: 38 steps (not 35), 9 specialists + 4 synthesis agents (not 4+2), no ReportingLead agent (replaced by deterministic `validation/pre_merge.py` in v0.4.0). Retained for design rationale only — see `CLAUDE.md` for current state.
+> **Two corrections to the model surface:** enums now live in `models/enums.py` (not `finding.py`); `AgentName` covers 9 specialists + Judge (not 4). Field population at merge happens via deterministic `validation/pre_merge.py` + `reporting/merge.py` (the recurring 'Reporting Lead adds fields' framing describes the removed agent). **Durable:** the Pydantic v2 patterns, validators, and serialization rationale.
 
 # 04 -- Data Models (Pydantic v2)
 

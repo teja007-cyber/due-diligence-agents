@@ -1,4 +1,5 @@
 > **Historical design spec** — written during the build phase. The code in `src/dd_agents/` is the authoritative implementation. Key divergences: 38 steps (not 35), 9 specialists + 4 synthesis agents (not 4+2), no ReportingLead agent (replaced by deterministic `validation/pre_merge.py` in v0.4.0). Retained for design rationale only — see `CLAUDE.md` for current state.
+> **API/module names below have drifted.** The MCP tool is `search_similar` (not `semantic_search`); the modules are `vector_store/store.py` (`VectorStore`) + `vector_store/embeddings.py` (`DocumentChunker`). Enablement is driven by whether `search_similar` is in an agent's allowed tools — there is no `execution.chromadb_enabled` config key or `--chromadb` flag. **Durable:** when (not) to use a vector store and the chunking strategy.
 
 # 14 — Vector Store Integration (Optional)
 

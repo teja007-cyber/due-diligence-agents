@@ -1,4 +1,5 @@
 > **Historical design spec** — written during the build phase. The code in `src/dd_agents/` is the authoritative implementation. Key divergences: 38 steps (not 35), 9 specialists + 4 synthesis agents (not 4+2), no ReportingLead agent (replaced by deterministic `validation/pre_merge.py` in v0.4.0). Retained for design rationale only — see `CLAUDE.md` for current state.
+> **`numerical_audit.py` implements 6 layers** (Layer 6 = financial citation verification); step *numbers* below have drifted (coverage gate 17 is correct). Generalize any '4 agents' references to the 9-specialist set; the audit-log examples that name `reporting_lead` are obsolete. **Verified current:** the 31 DoD checks, the 18 QA checks, and the N001–N010 manifest design.
 
 # 11 -- QA and Validation (Audit Gates, 31 DoD Checks, Numerical Validation)
 

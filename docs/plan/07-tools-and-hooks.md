@@ -1,4 +1,5 @@
 > **Historical design spec** — written during the build phase. The code in `src/dd_agents/` is the authoritative implementation. Key divergences: 38 steps (not 35), 9 specialists + 4 synthesis agents (not 4+2), no ReportingLead agent (replaced by deterministic `validation/pre_merge.py` in v0.4.0). Retained for design rationale only — see `CLAUDE.md` for current state.
+> **All `Reporting Lead` tool/hook sections below are OBSOLETE** (the agent was removed in v0.4.0; merge is deterministic — `validation/pre_merge.py`). The tool count is ~18, not 6+1. `AgentFinding` imports from `models.finding` (there is no `models/subject.py`). **Still load-bearing and verified current:** the §8 hook-format reference table (flat PreToolUse/Stop format — CLAUDE.md rule 3) and the 5-guard hook chain (`hooks/factory.py`, `pre_tool.py`).
 
 # 07 — Custom MCP Tools and Hook Implementations
 

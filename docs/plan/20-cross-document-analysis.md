@@ -1,6 +1,7 @@
 # 20 -- Cross-Document Analysis
 
 > **Historical note**: This document references the ReportingLead agent which was removed in v0.4.0. Step 23 is now deterministic pre-merge validation (`validation/pre_merge.py`). See `06-agents.md` §11.
+> **Appendix B `cross_document.py` models and step numbers are illustrative** — `cross_document.py` was never built as a module. The semantic-dedup threshold is now an integer 80 (rapidfuzz `token_sort_ratio`) in `reporting/merge.py`, not 0.85. The `Reporting Lead` rows in §8.1/§8.3 describe the agent removed in v0.4.0. **Durable:** override categories, contradiction-vs-override logic, missing-doc detection, renewal-chain analysis.
 
 How the DD system analyzes relationships between contracts, detects overrides, contradictions, and missing documents, and maintains a governance graph that ensures no legal relationship is lost or misrepresented. Cross-document analysis is the core differentiator between naive per-file extraction and forensic-grade due diligence.
 

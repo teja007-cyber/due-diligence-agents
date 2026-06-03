@@ -1,4 +1,5 @@
 > **Historical design spec** — written during the build phase. The code in `src/dd_agents/` is the authoritative implementation. Key divergences: 38 steps (not 35), 9 specialists + 4 synthesis agents (not 4+2), no ReportingLead agent (replaced by deterministic `validation/pre_merge.py` in v0.4.0). Retained for design rationale only — see `CLAUDE.md` for current state.
+> **Specifics in this doc are obsolete — see `orchestrator/steps.py` for the canonical step list.** The pipeline is 38 steps; step *numbers* below have drifted. Blocking gates are steps 05/17/30/31/34. Cross-domain steps 18–20 exist. `SPAWN_REPORTING_LEAD` was removed (deterministic pre-merge validation, step 26, `validation/pre_merge.py`); the 4 `agent_types` are now 9 via `AgentRegistry`. The state-machine / checkpoint-resume *rationale* is what's durable here.
 
 # 05 — Orchestrator (Pipeline Engine)
 
