@@ -210,7 +210,12 @@ f-strings off those constants. One edit, everywhere. Unit-test that the threshol
 the assembled rubric and that bare literals do not appear independently.
 
 ### 1.2b [P1] The severity-decision chain is fragmented — unify it per AD-3
-**Verified, including one latent bug.** Severity is decided across four stages:
+> **SHIPPED.** This describes the pre-fix state. The fragmented chain and the dead-code
+> override below were unified into a single authority — `reporting/severity_resolver.py:resolve_severity()`
+> (CLAUDE.md rule 12) — which now records `severity_source` and applies the executive-synthesis
+> override. The "latent bug" described here is fixed. Read for rationale.
+
+**Verified, including one latent bug (since fixed — see note above).** Severity *was* decided across four stages:
 1. **Prompt-time** — `severity_overrides` and the rubric are injected into the specialist
    prompt (`prompt_builder.py:420-425`); the LLM is *asked* to apply them. **Not enforced.**
 2. **Deterministic recalibration (post-merge)** — `_RECALIBRATION_RULES`

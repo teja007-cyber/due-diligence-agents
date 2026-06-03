@@ -162,9 +162,10 @@ Plan docs (`docs/plan/02-22`) are **historical design specs**. Code is authorita
 
 ## CI/CD
 
-Two workflows in `.github/workflows/`:
+Three workflows in `.github/workflows/`:
 - `ci.yml` — lint, types, unit tests (3.12 + 3.13 matrix), integration, build, E2E
 - `release.yml` — triggered by version tag → PyPI (OIDC) + Docker (GHCR + Docker Hub) + Homebrew formula bump + GitHub Release
+- `pages.yml` — deploys the MkDocs site to GitHub Pages on `docs/` changes to `main`
 
 Docs drift is enforced inside the unit gate: `tests/unit/test_docs_drift.py` runs in both workflows (no separate job), so a doc that contradicts code-derived architecture counts, the published Docker image, or MCP tool-annotation contracts fails CI.
 

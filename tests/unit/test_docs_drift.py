@@ -65,6 +65,20 @@ def _specialist_count() -> int:
     return len(AgentRegistry.all_specialist_names())
 
 
+def _total_agent_count() -> int:
+    """Total agents docs headline as "N AI agents" = registered specialists +
+    the non-specialist synthesis runners. The synthesis agents aren't registry-
+    enumerated, so importing the classes here means dropping one (e.g. removing
+    RedFlagScannerAgent) changes this number and trips the doc guard."""
+    from dd_agents.agents.acquirer_intelligence import AcquirerIntelligenceAgent
+    from dd_agents.agents.executive_synthesis import ExecutiveSynthesisAgent
+    from dd_agents.agents.judge import JudgeAgent
+    from dd_agents.agents.red_flag_scanner import RedFlagScannerAgent
+
+    synthesis = {JudgeAgent, ExecutiveSynthesisAgent, RedFlagScannerAgent, AcquirerIntelligenceAgent}
+    return _specialist_count() + len(synthesis)
+
+
 def _pipeline_step_count() -> int:
     from dd_agents.orchestrator.steps import PipelineStep
 
@@ -100,21 +114,55 @@ def _offenders(pattern: str, expected: int) -> dict[str, list[int]]:
     return out
 
 
+def _offenders_near(pattern: str, expected: int, *, context: str, window: int = 40) -> dict[str, list[int]]:
+    """Like :func:`_offenders`, but only counts a match when a *context* word
+    appears within *window* chars on either side. Lets a count phrase be guarded
+    only in its intended context (e.g. "N steps" near "pipeline")."""
+    ctx = re.compile(context, re.IGNORECASE)
+    out: dict[str, list[int]] = {}
+    for f, t in _doc_text().items():
+        wrong: set[int] = set()
+        for m in re.finditer(pattern, t):
+            val = int(m.group(1))
+            if val == expected:
+                continue
+            lo, hi = max(0, m.start() - window), min(len(t), m.end() + window)
+            if ctx.search(t[lo:hi]):
+                wrong.add(val)
+        if wrong:
+            out[f] = sorted(wrong)
+    return out
+
+
 def test_specialist_count_in_docs_matches_code() -> None:
     n = _specialist_count()
     bad = _offenders(r"\b(\d+) specialist", n)
     assert not bad, f"Docs cite a specialist count != {n} (code truth): {bad}"
 
 
+def test_total_agent_count_in_docs_matches_code() -> None:
+    n = _total_agent_count()
+    # Only the unambiguous total phrasing "N AI agents" — NOT bare "N agents",
+    # which docs also use for non-total counts ("9 agents by default",
+    # "pass-2 agents"). This is why docs should headline the total as "AI agents".
+    bad = _offenders(r"\b(\d+) AI agents\b", n)
+    assert not bad, f"Docs cite a total-agent count != {n} (9 specialists + 4 synthesis): {bad}"
+
+
 def test_pipeline_step_count_in_docs_matches_code() -> None:
     n = _pipeline_step_count()
-    bad = _offenders(r"\b(\d+)-step", n)
+    # Hyphenated "N-step" is always the pipeline. The space form "N steps" is
+    # only counted when "pipeline"/"orchestrator" appears within a short window
+    # on either side, so unrelated uses (e.g. a "10 steps" error-math example)
+    # are not false positives.
+    bad = _offenders(r"\b(\d+)-step\b", n)
+    bad |= _offenders_near(r"\b(\d+) steps?\b", n, context=r"pipeline|orchestrat")
     assert not bad, f"Docs cite a pipeline-step count != {n} (code truth): {bad}"
 
 
 def test_excel_sheet_count_in_docs_matches_schema() -> None:
     n = _excel_sheet_count()
-    bad = _offenders(r"\b(\d+)-sheet", n)
+    bad = _offenders(r"\b(\d+)[ -]sheets?\b", n)
     assert not bad, f"Docs cite an Excel sheet count != {n} (report_schema.json): {bad}"
 
 

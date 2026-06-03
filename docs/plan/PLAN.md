@@ -42,7 +42,7 @@ All 3,102 lines of domain knowledge -- extraction rules, severity taxonomy (P0-P
 
 **ADR-05: Pydantic v2 for all schemas** -- 20+ models covering every JSON artifact. `model_json_schema()` feeds SDK structured outputs. `model_validate()` replaces LLM-based QA checks.
 
-**ADR-06: Programmatic orchestration** -- 35 pipeline steps are Python async functions. Transitions are code, not LLM decisions. State machine supports resume-from-checkpoint.
+**ADR-06: Programmatic orchestration** -- the pipeline's steps are Python async functions. Transitions are code, not LLM decisions. State machine supports resume-from-checkpoint.
 
 ---
 
@@ -53,7 +53,7 @@ All 3,102 lines of domain knowledge -- extraction rules, severity taxonomy (P0-P
                                 |
                     +-----------v-----------+
                     |   Python Orchestrator  |
-                    |     (35-step pipeline) |
+                    |     (38-step pipeline) |
                     +-----------+-----------+
                                 |
           +----------+----------+----------+---------+
@@ -114,7 +114,7 @@ rich >= 13.0
 
 ## Numbered File Map
 
-Detailed content is distributed across 22 numbered files. Each file is self-contained for its topic and cross-references others by number. See [README.md](../../README.md) for the full table with dependency columns.
+Detailed content is distributed across the numbered design files. Each file is self-contained for its topic and cross-references others by number. See [README.md](../../README.md) for the full table with dependency columns.
 
 | File | Covers |
 |------|--------|

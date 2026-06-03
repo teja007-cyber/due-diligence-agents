@@ -24,7 +24,7 @@ Key architecture docs:
 |-----|-------|
 | [System Architecture](plan/02-system-architecture.md) | Persistence tiers, pipeline state machine |
 | [Orchestrator](plan/05-orchestrator.md) | 38-step pipeline, blocking gates, checkpoint/resume |
-| [Agents](plan/06-agents.md) | 13 agents, specialist domains, extensible registry |
+| [Agents](plan/06-agents.md) | 13 AI agents, specialist domains, extensible registry |
 | [Tools & Hooks](plan/07-tools-and-hooks.md) | MCP tools, PreToolUse/Stop hooks |
 | [Extraction](plan/08-extraction.md) | PDF/Office extraction, OCR, chunking |
 | [Reporting](plan/10-reporting.md) | HTML + Excel report generation |
