@@ -23,7 +23,7 @@
 https://github.com/user-attachments/assets/03ae7e38-8280-488c-898a-61c1a361bb7d
 
 
-**[See a sample report](https://zoharbabin.github.io/due-diligence-agents/)** — interactive HTML output from a synthetic deal, no install required.
+**[See a sample report](https://zoharbabin.github.io/due-diligence-agents/sample-report/)** — interactive HTML output from a synthetic deal, no install required.
 
 <details>
 <summary><strong>Report Preview</strong> — executive dashboard with Go/No-Go verdict, cross-domain synthesis, filter bar</summary>
@@ -411,7 +411,7 @@ All core dependencies use permissive open-source licenses (Apache 2.0, MIT, BSD)
 | [CLI Reference](docs/user-guide/cli-reference.md) | Complete command reference |
 | [Troubleshooting](docs/user-guide/troubleshooting.md) | Common errors, exit codes, recovery steps |
 | [Search Guide](docs/search-guide.md) | Contract search for legal teams |
-| [Architecture & Design](docs/plan/PLAN.md) | System architecture and design documents |
+| [Agent Customization](docs/agent-customization.md) | Tailor agent personas, focus areas, and severity (no code) |
 
 ## Contributing
 
