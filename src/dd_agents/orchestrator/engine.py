@@ -3042,6 +3042,14 @@ class PipelineEngine:
         if correction_count:
             logger.info("Applied %d chat corrections before writing merged output", correction_count)
 
+        # Deterministic output-side tamper / prompt-injection detection (audit §7.2).
+        # Injection patterns surfaced into findings become P1 document_integrity
+        # findings here — BEFORE write_merged, so step 29 counts them and step 30
+        # audits them. Idempotent: safe under --resume.
+        tamper_count = merger.inject_tamper_findings(merged)
+        if tamper_count:
+            logger.warning("Injected %d deterministic document_integrity (tamper) finding(s)", tamper_count)
+
         # Write merged files
         merged_dir = findings_dir / "merged"
         merger.write_merged(merged, merged_dir)
@@ -3290,7 +3298,7 @@ class PipelineEngine:
         return state
 
     async def _step_30_numerical_audit(self, state: PipelineState) -> PipelineState:
-        """Five-layer numerical validation.  BLOCKING GATE."""
+        """Seven-layer numerical validation.  BLOCKING GATE."""
         from dd_agents.validation.numerical_audit import NumericalAuditor
 
         inv_dir = self._inventory_dir(state)
@@ -3309,7 +3317,10 @@ class PipelineEngine:
 
         manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest = NumericalManifest.model_validate(manifest_data)
-        checks = auditor.run_full_audit(manifest)
+        # Pass the extracted-text index so Layer 6 (financial citation) and Layer 7
+        # (deterministic quote-fidelity guard) run against source documents.
+        text_dir = self._text_dir(state)
+        checks = auditor.run_full_audit(manifest, text_dir=text_dir if text_dir.exists() else None)
 
         failures = [c for c in checks if not c.passed]
         if failures:

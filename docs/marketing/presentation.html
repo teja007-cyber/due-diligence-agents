@@ -482,13 +482,14 @@
       </div>
       <div>
         <div class="card tint-g">
-          <div class="lead">Defense in depth — 5 layers</div>
+          <div class="lead">Defense in depth — layered</div>
           <ul class="clean g">
             <li><b>Structured output</b> validated against a schema; malformed output rejected on write</li>
             <li><b>Mandatory citations</b> — file, page, section, exact quote</li>
             <li><b>"NOT_FOUND" escape valve</b> — tell the model to write a gap instead of inventing</li>
             <li><b>Adversarial Judge</b> re-checks high-severity claims</li>
-            <li><b>6-layer numerical audit</b> re-derives every number</li>
+            <li><b>Deterministic numerical audit</b> re-derives the report's headline counts and re-checks P0/P1 quote fidelity against source</li>
+            <li><b>Output-side tamper scan</b> flags prompt-injection in documents as a P1 finding</li>
           </ul>
         </div>
         <div class="callout g"><p><b>The single biggest unlock:</b> giving the model an explicit way to say <span class="mono">NOT_FOUND</span> and write a gap. Without that escape valve, models fabricate rather than admit ignorance. With it, hallucination drops sharply.</p></div>
@@ -616,7 +617,7 @@
     <div class="grid g3" style="margin-top:6px">
       <div class="card"><div class="lead" style="color:var(--red)">Gate · Extraction</div><p>Halts if document text extraction systemically fails.</p></div>
       <div class="card"><div class="lead" style="color:var(--red)">Gate · Coverage</div><p>Every counterparty must be analyzed by every agent. Auto-respawn for gaps.</p></div>
-      <div class="card"><div class="lead" style="color:var(--red)">Gate · Numerical audit</div><p>6 layers: source traceability, re-derivation, cross-source &amp; cross-format consistency.</p></div>
+      <div class="card"><div class="lead" style="color:var(--red)">Gate · Numerical audit</div><p>Source traceability, count re-derivation, cross-source &amp; cross-format consistency, plus financial-citation and quote-fidelity checks.</p></div>
       <div class="card"><div class="lead" style="color:var(--red)">Gate · QA audit</div><p>18 structural checks — manifests, citations, domain coverage, report sheets.</p></div>
       <div class="card"><div class="lead" style="color:var(--red)">Gate · Post-generation</div><p>Excel must match the numerical manifest cell-for-cell before release.</p></div>
       <div class="card tint-r"><div class="lead">Agent guardrails</div><p>Path-locked to the output dir. 50+ blocked shell patterns. Turn limits with hard kill. Agents have tools, not shell freedom.</p></div>

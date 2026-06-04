@@ -1,9 +1,11 @@
-"""6-layer numerical audit.
+"""7-layer numerical audit.
 
 Implements the blocking gate between analysis completion and Excel
 generation. Every number in the pipeline must be traceable, re-derivable,
 cross-source consistent, format-consistent, semantically reasonable,
-and -- for financial citations -- present in the referenced source documents.
+present in the referenced source documents (financial citations), and --
+for P0/P1 quotes -- faithful to source in their salient tokens (numbers,
+durations, negations) so fabricated or materially-edited quotes are caught.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 from dd_agents.models.audit import AuditCheck
 from dd_agents.utils.constants import FILES_TXT, SEVERITY_P0, SEVERITY_P1, SEVERITY_P2, SEVERITY_P3, SUBJECTS_CSV
+from dd_agents.validation._finding_filters import is_tamper_finding as _is_tamper_finding
 
 if TYPE_CHECKING:
     from dd_agents.models.numerical import ManifestEntry, NumericalManifest
@@ -33,7 +36,7 @@ def _manifest_get(manifest: NumericalManifest, entry_id: str) -> ManifestEntry |
 
 
 class NumericalAuditor:
-    """6-layer numerical auditor -- BLOCKING gate before Excel generation.
+    """7-layer numerical auditor -- BLOCKING gate before Excel generation.
 
     Layers
     ------
@@ -43,6 +46,10 @@ class NumericalAuditor:
     4. Cross-format parity  -- spot-check Excel vs JSON (post-generation only).
     5. Semantic              -- flag implausible values.
     6. Financial citation   -- dollar amounts in P0/P1 findings match source docs.
+    7. Quote fidelity        -- P0/P1 ``exact_quote`` salient tokens (numbers,
+       durations, percentages, negations) are supported by the cited source
+       (catches material edits fuzzy matching misses). Non-blocking when
+       ``text_dir`` is unavailable.
     """
 
     def __init__(
@@ -61,11 +68,11 @@ class NumericalAuditor:
     # ------------------------------------------------------------------ #
 
     def run_full_audit(self, manifest: NumericalManifest, *, text_dir: Path | None = None) -> list[AuditCheck]:
-        """Run all 6 layers and return a list of AuditCheck results.
+        """Run all 7 layers and return a list of AuditCheck results.
 
         Layers 1-3 and 5 run pre-generation.
         Layer 4 is skipped when no Excel path is provided.
-        Layer 6 runs when *text_dir* is provided; non-blocking when absent.
+        Layers 6 and 7 run when *text_dir* is provided; non-blocking when absent.
         """
         checks: list[AuditCheck] = [
             self.check_source_traceability(manifest),
@@ -75,6 +82,8 @@ class NumericalAuditor:
         ]
         # Layer 6: financial citation verification (non-blocking when text_dir unavailable).
         checks.append(self.check_financial_citations(text_dir=text_dir))
+        # Layer 7: deterministic quote-fidelity guard (non-blocking when text_dir unavailable).
+        checks.append(self.check_quote_fidelity(text_dir=text_dir))
         return checks
 
     # ------------------------------------------------------------------ #
@@ -326,6 +335,9 @@ class NumericalAuditor:
             severity = f.get("severity", SEVERITY_P3)
             if severity not in (SEVERITY_P0, SEVERITY_P1):
                 continue
+            # Tamper findings carry attacker prose / synthetic sources — exclude.
+            if _is_tamper_finding(f):
+                continue
 
             # Extract dollar amounts from the finding.
             description = f.get("description", "")
@@ -374,6 +386,93 @@ class NumericalAuditor:
             },
             rule="Layer 6: financial values in P0/P1 findings match source documents.",
         )
+
+    def check_quote_fidelity(self, text_dir: Path | None = None) -> AuditCheck:
+        """Layer 7: re-verify P0/P1 ``exact_quote``s against cited source text.
+
+        Complements Layer 6 (financial amounts) and the agent-facing
+        ``verify_citation`` tool with a deterministic salience guard that catches
+        the material edits fuzzy matching misses — swapped numbers/durations,
+        altered currency, and flipped negations (see
+        :mod:`dd_agents.validation.quote_guard`). For each P0/P1 finding it loads
+        the cited source's extracted text and reports any salient quote token the
+        source does not support.
+
+        Non-blocking when *text_dir* is unavailable (mirrors Layer 6): findings
+        whose source text cannot be loaded (e.g. synthetic citations) are skipped,
+        never failed.
+        """
+        from dd_agents.validation.quote_guard import quote_salience_mismatches
+
+        if text_dir is None or not text_dir.exists():
+            return AuditCheck(
+                passed=True,
+                dod_checks=[5],
+                details={"layer": 7, "skipped": True, "reason": "text_dir not available"},
+                rule="Layer 7: P0/P1 exact_quotes are faithful to source (numbers, durations, negations).",
+            )
+
+        checked = 0
+        mismatched = 0
+        failures: list[str] = []
+        for f in self._load_merged_findings():
+            if f.get("severity") not in (SEVERITY_P0, SEVERITY_P1):
+                continue
+            # Skip deterministic tamper findings: their exact_quote IS attacker-
+            # controlled injection prose, deliberately reproduced as evidence —
+            # checking it against its own source would self-fail this gate.
+            if _is_tamper_finding(f):
+                continue
+            # Verify each citation against ITS OWN source document (not citations[0]):
+            # multi-citation findings legitimately cite multiple files.
+            for cit in f.get("citations", []):
+                if not isinstance(cit, dict):
+                    continue
+                quote = cit.get("exact_quote", "") or ""
+                if not quote:
+                    continue
+                source_text = self._load_citation_source_text(cit, text_dir)
+                if not source_text:
+                    continue  # No real source to compare — non-blocking (Layer 6 parity).
+                checked += 1
+                mismatches = quote_salience_mismatches(quote, source_text)
+                if mismatches:
+                    mismatched += 1
+                    failures.append(
+                        f"Finding '{str(f.get('title', 'untitled'))[:60]}' "
+                        f"({f.get('severity')}): {'; '.join(mismatches)}"
+                    )
+
+        return AuditCheck(
+            passed=mismatched == 0,
+            dod_checks=[5],
+            details={
+                "layer": 7,
+                "checked": checked,
+                "mismatched": mismatched,
+                "failures": failures[:50],
+            },
+            rule="Layer 7: P0/P1 exact_quotes are faithful to source (numbers, durations, negations).",
+        )
+
+    def _load_citation_source_text(self, citation: dict[str, Any], text_dir: Path) -> str:
+        """Load extracted text for a single citation's ``source_path``.
+
+        Per-citation companion to :meth:`_load_cited_source_text` (which only
+        resolves the finding's first citation). Returns ``""`` for synthetic or
+        unresolvable paths so callers treat them as non-blocking.
+        """
+        source_path = citation.get("source_path", "")
+        if not source_path or source_path.startswith("["):
+            return ""
+        basename = source_path.rsplit("/", 1)[-1] if "/" in source_path else source_path
+        for suffix in [".md", ""]:
+            for txt_file in text_dir.rglob(f"{basename}{suffix}"):
+                try:
+                    return txt_file.read_text(errors="replace")[:500_000]
+                except OSError:
+                    continue
+        return ""
 
     @staticmethod
     def _extract_dollar_amounts(text: str, pattern: re.Pattern[str] | None = None) -> set[float]:

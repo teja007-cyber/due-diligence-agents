@@ -24,6 +24,7 @@ from dd_agents.utils.constants import (
     SEVERITY_P2,
     _sev_count_init,
 )
+from dd_agents.validation._finding_filters import is_tamper_finding as _is_tamper_finding
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -966,6 +967,11 @@ class QAAuditor:
             severity = finding.get("severity", "")
             if severity not in (SEVERITY_P0, SEVERITY_P1):
                 continue
+            # Deterministic tamper findings legitimately use a synthetic source
+            # when no real document can be attributed — exclude them here (the
+            # injection-pattern match, not the citation, is their evidence).
+            if _is_tamper_finding(finding):
+                continue
             citations = finding.get("citations", [])
             finding_id = finding.get("id", "unknown")
 
@@ -982,7 +988,13 @@ class QAAuditor:
                 if not cit.get("exact_quote"):
                     violations.append({"finding_id": finding_id, "error": "missing exact_quote"})
 
-        total_p0_p1 = len([f for f in merged_findings if f.get("severity") in (SEVERITY_P0, SEVERITY_P1)])
+        total_p0_p1 = len(
+            [
+                f
+                for f in merged_findings
+                if f.get("severity") in (SEVERITY_P0, SEVERITY_P1) and not _is_tamper_finding(f)
+            ]
+        )
         # Count unique findings with violations (a finding may produce multiple
         # violation entries -- one per bad citation).
         violation_finding_ids = {v["finding_id"] for v in violations}

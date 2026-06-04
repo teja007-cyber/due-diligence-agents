@@ -505,16 +505,16 @@ class TestNumericalAuditor:
         assert any("Subject count changed" in f for f in check.details["failures"])
 
     def test_run_full_audit(self, tmp_path: Path) -> None:
-        """Full audit returns 5 checks (layers 1, 2, 3, 5, 6)."""
+        """Full audit returns 6 checks (layers 1, 2, 3, 5, 6, 7)."""
         manifest = _make_manifest(n003=10, n004=1, n005=2, n006=3, n007=4)
         (tmp_path / "subjects.csv").write_text("header\n" + "\n".join(f"row{i}" for i in range(3)) + "\n")
         (tmp_path / "counts.json").write_text(json.dumps({"total_subjects": 3}))
 
         auditor = NumericalAuditor(run_dir=tmp_path, inventory_dir=tmp_path)
         checks = auditor.run_full_audit(manifest)
-        assert len(checks) == 5
+        assert len(checks) == 6
         layers = [c.details["layer"] for c in checks]
-        assert sorted(layers) == [1, 2, 3, 5, 6]
+        assert sorted(layers) == [1, 2, 3, 5, 6, 7]
 
     def test_manifest_with_generated_at_validates(self) -> None:
         """A manifest dict that includes generated_at validates successfully."""
