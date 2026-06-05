@@ -83,7 +83,7 @@ The system runs as a 38-step async state machine organized into five stages. Eac
 ├─────────────────────────────────────────────────────────┤
 │  Stage 4: Quality Review (Steps 18-31)                  │
 │  Cross-domain analysis, judge adversarial review,       │
-│  merge & dedup, numerical audit (6-layer),              │
+│  merge & dedup, deterministic numerical audit,          │
 │  31 Definition of Done checks                           │
 │  🚫 GATE: Numerical audit (step 30)                     │
 │  🚫 GATE: Full QA audit (step 31)                       │
@@ -286,15 +286,16 @@ Every severity change records `_recalibrated_from` and `_recalibration_reason` f
 
 Production retrospective on a real deal (~200 subjects) revealed that all 17 quality failures were instruction-following failures — the LLM ignored prose "MUST" constraints. This led to a fundamental architecture decision: **Python controls flow, LLMs are workers.** Enforcement is programmatic, not prose.
 
-### 6-layer hallucination defense
+### Layered hallucination defense
 
 | Layer | Mechanism | What It Catches |
 |-------|-----------|-----------------|
 | **L1: Structured output** | Pydantic v2 schema validation | Malformed output, missing fields, wrong types |
-| **L2: Citation verification** | 4-scope progressive search (exact page → adjacent ±1 → full doc fuzzy → cross-file) | Fabricated quotes, wrong page numbers, file misattribution |
+| **L2: Citation verification** | 4-scope progressive search (exact page → adjacent ±1 → full doc fuzzy → cross-file), plus a deterministic Layer 7 quote-fidelity gate that re-checks P0/P1 quote salient tokens (numbers, durations, negations) against the cited source | Fabricated quotes, wrong page numbers, file misattribution, materially-edited quotes (swapped figures, flipped negations) |
 | **L3: NOT_FOUND escape valve** | Explicit protocol: "If you cannot find this clause, write a gap" | Models fabricating clauses rather than admitting ignorance |
 | **L4: Adversarial Judge** | Separate agent spot-checks findings (P0: 100%, P1: 20%, P2: 10%) using accusatory framing | Overconfident findings, severity inflation |
-| **L5: Numerical audit** | 6-layer deterministic re-derivation of every number | Hallucinated statistics, arithmetic errors |
+| **L5: Numerical audit** | Deterministic blocking gate re-deriving the report's headline counts from source and checking cross-format/financial-citation/quote-fidelity consistency (see `validation/numerical_audit.py`) | Hallucinated statistics, arithmetic errors, fabricated figures |
+| **L6: Output-side tamper scan** | Deterministic injection-pattern scan over merged findings; matches surface as a non-removable P1 `document_integrity` finding (`reporting/merge.py:inject_tamper_findings`) | Prompt-injection / tampering embedded in data-room documents |
 
 ### Agent guardrails
 
@@ -394,7 +395,7 @@ Every architecture embodies tradeoffs. These are the ones we made explicitly, wi
 
 ### Thoroughness vs. speed
 
-**Chose**: Thoroughness. Agents read full documents. 6-layer verification. 31 DoD checks.
+**Chose**: Thoroughness. Agents read full documents. Multi-layer deterministic verification. 31 DoD checks.
 **Why**: In M&A, a missed deal-killer costs more than a slow pipeline. Accuracy is non-negotiable; latency is tolerable.
 **Cost**: Pipeline takes hours, not minutes.
 **Benefit**: Every finding traces to source. Every number is re-derived.
@@ -439,7 +440,7 @@ Every major design decision maps to published research or production retrospecti
 
 | Finding | Source | Application |
 |---------|--------|------------|
-| Legal AI hallucination: 17-33% | Stanford, Magesh et al., 2025 | Justification for 6-layer verification stack. Single defense is insufficient. |
+| Legal AI hallucination: 17-33% | Stanford, Magesh et al., 2025 | Justification for the layered verification stack. Single defense is insufficient. |
 | GPT-4 legal hallucination: 58-80% | Stanford, Magesh et al., 2025 | Citation verification is mandatory, not optional. |
 | Longer answers correlate with more hallucinations | Stanford, Magesh et al., 2025 | Constrained structured output via Pydantic schemas. |
 | RAG reduces but doesn't eliminate hallucination | Stanford, Magesh et al., 2025 | Multiple independent verification layers required. |

@@ -39,6 +39,29 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+#: Leading characters a spreadsheet may interpret as a formula (CSV/Excel
+#: injection, OWASP). Document-derived strings (citation quotes, titles,
+#: descriptions) are attacker-influenceable, so any cell value beginning with
+#: one of these is defused by prefixing a single quote.
+_FORMULA_TRIGGERS = ("=", "+", "-", "@")
+
+
+def _sanitize_cell(value: Any) -> Any:
+    """Neutralize formula-injection in string cell values (CSV/Excel injection).
+
+    Non-string values pass through unchanged (so numbers stay numeric). String
+    values are stripped of leading control characters (tab/CR/LF), and if they
+    then begin with a formula trigger (``= + - @``) a single quote is prepended
+    so the spreadsheet renders the literal text instead of evaluating it.
+    Idempotent and pure.
+    """
+    if not isinstance(value, str) or not value:
+        return value
+    stripped = value.lstrip("\t\r\n")
+    if stripped and stripped[0] in _FORMULA_TRIGGERS:
+        return "'" + stripped
+    return value
+
 
 def _recalibrate_merged(merged: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Return a shallow copy of merged data with all findings recalibrated.
@@ -249,7 +272,7 @@ class ExcelReportGenerator:
                 # like ['item1', 'item2'] (Issue #53).
                 if isinstance(value, list):
                     value = "; ".join(str(v) for v in value)
-                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                cell = ws.cell(row=row_idx, column=col_idx, value=_sanitize_cell(value))
                 cell.font = Font(size=fmt.body_font_size)
 
         # Summary formulas

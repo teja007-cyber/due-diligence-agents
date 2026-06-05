@@ -11,6 +11,7 @@ Implements the 6-step merge/dedup protocol from 10-reporting.md:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -633,6 +634,11 @@ class FindingMerger:
     # ------------------------------------------------------------------
 
     _SEMANTIC_THRESHOLD: int = 80  # rapidfuzz token_sort_ratio threshold
+
+    #: Per-subject cap on injected deterministic tamper findings (audit §7.2).
+    #: One capped P1 already surfaces the tampering; the rest are logged and
+    #: suppressed so a flooded document cannot generate unbounded findings.
+    _MAX_TAMPER_FINDINGS_PER_SUBJECT: int = 5
 
     def _semantic_dedup(self, findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Merge semantically similar findings using fuzzy title matching.
@@ -1695,12 +1701,19 @@ class FindingMerger:
     ) -> list[dict[str, Any]]:
         """Deterministic output-side tamper check (audit §7.2).
 
-        Read-only, additive helper — does NOT mutate the merge/severity flow.
-        Scans each finding's title/description and citation ``exact_quote`` text
-        for prompt-injection patterns (reuses
-        :data:`SAFETY_FLOOR_NEGATION_PATTERNS`). When matched, emits a
-        synthetic P1 ``document_integrity`` finding for the subject so the
-        possible tampering surfaces in the report. Clean findings → ``[]``.
+        Pure, read-only scan: takes promoted findings (as dicts) and returns a
+        list of tamper *signal* dicts — it never mutates its input. Scans each
+        finding's title/description and citation ``exact_quote`` text for
+        prompt-injection patterns (reuses :data:`SAFETY_FLOOR_NEGATION_PATTERNS`).
+        Clean findings → ``[]``.
+
+        Each signal carries enough provenance for :meth:`inject_tamper_findings`
+        to build a citable P1 ``document_integrity`` finding: the originating
+        ``subject`` and ``source_finding_id``, the ``source_path`` of the citation
+        that tripped the scan (empty string when the match was in the
+        title/description rather than a quote), and the ``matched_text`` — the
+        verbatim snippet that matched, used as the finding's ``exact_quote`` so
+        the injection itself becomes the evidence.
 
         ``documents_by_subject`` is accepted for forward compatibility (e.g.
         documents-but-zero-findings checks) but is not required for the
@@ -1715,19 +1728,26 @@ class FindingMerger:
             for f in findings_by_subject[subject]:
                 if not isinstance(f, dict):
                     continue
-                texts: list[str] = [
-                    str(f.get("title", "")),
-                    str(f.get("description", "")),
-                ]
+                # Scan citation quotes first (preferred evidence — they carry a
+                # real source_path); fall back to title/description text.
+                match_text: str | None = None
+                match_pattern: str | None = None
+                match_source_path = ""
                 for cite in f.get("citations", []) or []:
-                    if isinstance(cite, dict):
-                        texts.append(str(cite.get("exact_quote", "")))
-                haystack = "\n".join(t for t in texts if t)
-                matched = next(
-                    (p.pattern for p in SAFETY_FLOOR_NEGATION_PATTERNS if p.search(haystack)),
-                    None,
-                )
-                if matched is None:
+                    if not isinstance(cite, dict):
+                        continue
+                    quote = str(cite.get("exact_quote", "") or "")
+                    hit = self._first_tamper_match(quote, SAFETY_FLOOR_NEGATION_PATTERNS)
+                    if hit is not None:
+                        match_text, match_pattern = quote, hit
+                        match_source_path = str(cite.get("source_path", "") or "")
+                        break
+                if match_text is None:
+                    meta_text = "\n".join(t for t in (str(f.get("title", "")), str(f.get("description", ""))) if t)
+                    hit = self._first_tamper_match(meta_text, SAFETY_FLOOR_NEGATION_PATTERNS)
+                    if hit is not None:
+                        match_text, match_pattern = meta_text, hit
+                if match_text is None:
                     continue
                 signals.append(
                     {
@@ -1737,12 +1757,175 @@ class FindingMerger:
                         "description": (
                             "Source text associated with this finding contains an "
                             "instruction-like pattern aimed at the analysis agent "
-                            f"(matched: {matched!r}). Treat the underlying document as "
-                            "untrusted evidence and verify integrity with the data-room owner."
+                            f"(matched pattern: {match_pattern!r}). Treat the underlying "
+                            "document as untrusted evidence and verify integrity with the "
+                            "data-room owner."
                         ),
                         "subject": subject,
                         "source_finding_id": str(f.get("finding_id", f.get("id", ""))),
+                        "source_path": match_source_path,
+                        "matched_text": match_text,
+                        "matched_pattern": match_pattern,
                         "metadata": {"tamper": True, "detector": "detect_tamper_signals"},
                     }
                 )
         return signals
+
+    @staticmethod
+    def _first_tamper_match(text: str, patterns: Any) -> str | None:
+        """Return the ``.pattern`` of the first negation pattern that matches *text*."""
+        if not text:
+            return None
+        for p in patterns:
+            if p.search(text):
+                return str(p.pattern)
+        return None
+
+    def inject_tamper_findings(self, merged: dict[str, MergedSubjectOutput]) -> int:
+        """Wire :meth:`detect_tamper_signals` into the merged output (audit §7.2).
+
+        Scans the merged findings for prompt-injection / tamper patterns and, for
+        each hit, appends a deterministic P1 ``document_integrity`` :class:`Finding`
+        to the originating subject so the possible tampering surfaces in the report
+        and is counted by the numerical manifest (step 29) and audited (step 30).
+
+        Mutating but idempotent: the synthetic finding's id is derived from a hash
+        of ``(subject_safe_name, source_finding_id, matched_pattern)`` — independent
+        of ``run_id`` — so re-runs and ``--resume`` never duplicate it. Returns the
+        number of tamper findings newly added.
+
+        The injected finding cites the originating document with the matched
+        injection text as its ``exact_quote`` (the injection is the evidence), and
+        stamps ``metadata.provenance.severity_source`` so the single severity
+        authority (:func:`resolve_severity`) and the read-only recalibration guard
+        leave its P1 intact. ``document_integrity`` is tamper-protected from
+        user-override downgrade (see :mod:`dd_agents.reporting.severity_resolver`).
+        """
+        # Build the dict view the detector expects (it never mutates input).
+        # Exclude existing tamper findings: their quote IS the injection text, so
+        # re-scanning them would self-amplify and break idempotency.
+        findings_by_subject: dict[str, list[dict[str, Any]]] = {
+            csn: [
+                fnd.model_dump(mode="python")
+                for fnd in mco.findings
+                if not (fnd.category == "document_integrity" and fnd.metadata.get("tamper"))
+            ]
+            for csn, mco in merged.items()
+        }
+        signals = self.detect_tamper_signals(findings_by_subject)
+        if not signals:
+            return 0
+
+        added = 0
+        added_per_subject: dict[str, int] = {}
+        for sig in signals:
+            csn = str(sig["subject"])
+            mco = merged.get(csn)
+            if mco is None:
+                continue
+
+            # Per-subject cap: a data room scattered with injection phrases must
+            # not produce unbounded P1s (mirrors the cross-domain trigger cap).
+            # One capped finding already makes the tampering visible.
+            if added_per_subject.get(csn, 0) >= self._MAX_TAMPER_FINDINGS_PER_SUBJECT:
+                logger.warning(
+                    "Tamper-finding cap (%d) reached for subject %s — further injection "
+                    "signals suppressed; review the document manually",
+                    self._MAX_TAMPER_FINDINGS_PER_SUBJECT,
+                    csn,
+                )
+                continue
+
+            stable_key = "|".join([csn, str(sig.get("source_finding_id", "")), str(sig.get("matched_pattern", ""))])
+            digest = hashlib.sha256(stable_key.encode("utf-8")).hexdigest()
+            # Finding id pattern: {skill}_{agent}_{subject}_{seq:>=4 digits}.
+            seq = int(digest[:8], 16) % 1_000_000
+            finding_id = f"forensic-dd_judge_{csn}_{seq:06d}"
+
+            # Idempotency: skip if this exact tamper finding already exists.
+            if any(f.id == finding_id for f in mco.findings):
+                continue
+
+            # P0/P1 findings require a real, non-synthetic source_path + exact_quote
+            # (qa_audit). When the match came from a citation we have both; when it
+            # came from finding title/description we fall back to citing the source
+            # finding's own first real citation if available.
+            source_path = str(sig.get("source_path") or "")
+            quote = str(sig.get("matched_text") or "")
+            if not source_path:
+                source_path, fallback_quote = self._first_real_citation(mco, sig.get("source_finding_id"))
+                quote = quote or fallback_quote
+            # Last-resort: if still no real source, cite the source finding id so the
+            # P1 is auditable; severity downgrade logic will handle a weak citation.
+            if not source_path:
+                source_path = f"[synthetic:tamper_source#{sig.get('source_finding_id', '')}]"
+
+            citation = Citation(
+                source_type=SourceType("file"),
+                source_path=source_path,
+                location="",
+                exact_quote=quote or None,
+                verification_status="failed",
+            )
+            metadata: dict[str, Any] = {
+                "tamper": True,
+                "detector": "detect_tamper_signals",
+                "source_finding_id": str(sig.get("source_finding_id", "")),
+                "matched_pattern": str(sig.get("matched_pattern", "")),
+                "provenance": {
+                    "agent_name": "judge",
+                    "merge_action": "tamper_injected",
+                    "citation_verified": False,
+                    "severity_source": "tamper_detector",
+                    "severity_chain": [
+                        {
+                            "stage": "tamper_detector",
+                            "severity": "P1",
+                            "reason": "deterministic injection-pattern match",
+                        }
+                    ],
+                    "config_hash": self._config_hash,
+                    "prompt_version": self._prompt_version,
+                },
+            }
+            try:
+                tamper_finding = Finding(
+                    id=finding_id,
+                    severity=Severity.P1,
+                    category="document_integrity",
+                    title="Possible document tampering / prompt injection detected",
+                    description=str(sig["description"]),
+                    citations=[citation],
+                    confidence=Confidence.MEDIUM,
+                    agent=AgentName.JUDGE,
+                    skill="forensic-dd",
+                    run_id=self.run_id,
+                    timestamp=self.timestamp,
+                    analysis_unit=mco.subject,
+                    metadata=metadata,
+                )
+            except Exception:  # noqa: BLE001 — never let a tamper signal break merge
+                logger.exception("Failed to build tamper finding for subject %s", csn)
+                continue
+            mco.findings.append(tamper_finding)
+            added += 1
+            added_per_subject[csn] = added_per_subject.get(csn, 0) + 1
+            logger.warning(
+                "Injected P1 document_integrity finding for subject %s (pattern=%s)",
+                csn,
+                sig.get("matched_pattern"),
+            )
+        return added
+
+    @staticmethod
+    def _first_real_citation(mco: MergedSubjectOutput, source_finding_id: Any) -> tuple[str, str]:
+        """Return ``(source_path, exact_quote)`` of the first real citation on the
+        source finding (preferred) or anywhere in the subject, for tamper-finding
+        attribution. Empty strings when none is available."""
+        sid = str(source_finding_id or "")
+        candidates = [f for f in mco.findings if f.id == sid] or list(mco.findings)
+        for f in candidates:
+            for cit in f.citations:
+                if cit.source_path and not cit.source_path.startswith("["):
+                    return cit.source_path, (cit.exact_quote or "")
+        return "", ""

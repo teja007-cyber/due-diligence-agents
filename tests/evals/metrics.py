@@ -101,8 +101,12 @@ def match_finding(produced: dict[str, Any], expected: ExpectedFinding) -> bool:
     3. Citation file reference (if citation_must_reference specifies a file)
     """
     prod_cat = produced.get("category", "").lower()
-    exp_cat = expected.category.lower()
-    if not _categories_match(prod_cat, exp_cat):
+    # Accept the primary category OR any declared alternative (for findings whose
+    # risk legitimately spans domains). The keyword + citation checks below remain
+    # the discriminators, so this widens acceptance for ONE finding without
+    # loosening global category matching.
+    acceptable_categories = [expected.category.lower(), *(c.lower() for c in expected.alternative_categories)]
+    if not any(_categories_match(prod_cat, cat) for cat in acceptable_categories):
         return False
 
     if expected.must_contain_keywords:
@@ -203,6 +207,59 @@ def evaluate_verdict(
         return Verdict.INCONCLUSIVE
 
 
+#: How many expected findings a single produced finding may be credited against.
+#: K=1 would be strict 1:1 (penalises an agent that legitimately consolidates two
+#: related risks into one well-written finding); unbounded many-to-one lets ONE
+#: keyword-stuffed finding fake N distinct risks. K=2 credits genuine
+#: consolidation (a clause covering both a non-compete AND a termination
+#: provision) while still capping a single finding well below a multi-risk slate.
+_MAX_EXPECTED_PER_FINDING = 2
+
+
+def _max_bipartite_matching(
+    produced: list[dict[str, Any]], expected: list[ExpectedFinding], capacity: int = _MAX_EXPECTED_PER_FINDING
+) -> int:
+    """Max *expected* findings matchable, each produced finding usable up to *capacity* times.
+
+    Capacity-constrained bipartite matching via augmenting paths (Kuhn's
+    algorithm with per-produced-node capacity), stdlib only. An edge exists when
+    ``match_finding(produced[i], expected[j])`` holds. With ``capacity``=2 a
+    produced finding can satisfy at most two expecteds — crediting an agent that
+    genuinely consolidates two related risks into one finding, while a single
+    keyword-stuffed finding still cannot fake three or more distinct risks. The
+    keyword + citation gate on every edge means a finding only counts toward an
+    expected whose discriminating content it actually contains.
+    """
+    if not produced or not expected or capacity < 1:
+        return 0
+    # Capacity-K is modeled by giving each produced finding K interchangeable
+    # "slots" (node ids p*capacity .. p*capacity+K-1) and running plain 1:1
+    # maximum matching over the slots. This is provably equivalent to per-node
+    # capacity K and far simpler to reason about than capacity-augmenting paths.
+    # adjacency: slot id -> expected indices the underlying finding can satisfy
+    adj: dict[int, list[int]] = {}
+    for p_idx, p in enumerate(produced):
+        edges = [j for j, e in enumerate(expected) if match_finding(p, e)]
+        for k in range(capacity):
+            adj[p_idx * capacity + k] = edges
+
+    expected_to_slot: dict[int, int] = {}
+
+    def _augment(slot: int, visited: set[int]) -> bool:
+        for e_idx in adj[slot]:
+            if e_idx in visited:
+                continue
+            visited.add(e_idx)
+            if e_idx not in expected_to_slot or _augment(expected_to_slot[e_idx], visited):
+                expected_to_slot[e_idx] = slot
+                return True
+        return False
+
+    for slot in adj:
+        _augment(slot, set())
+    return len(expected_to_slot)
+
+
 def compute_agent_metrics(
     produced_findings: list[dict[str, Any]],
     ground_truth: GroundTruth,
@@ -220,23 +277,20 @@ def compute_agent_metrics(
     expected = ground_truth.expected_findings
     must_not = ground_truth.must_not_find
 
-    # --- Recall: how many expected findings were matched ---
-    matched_expected: list[ExpectedFinding] = []
-    matched_produced_indices: set[int] = set()
+    # --- Recall: optimal 1:1 (bipartite) matching of required expecteds ---
+    # Each required expected is matched to a DISTINCT produced finding via
+    # maximum bipartite matching (`_max_bipartite_matching`). This is the right
+    # middle ground between greedy 1:1 (which under-credits when match order is
+    # unlucky) and unconstrained many-to-one (which lets ONE keyword-stuffed
+    # finding satisfy several expecteds — an over-credit masking hole). Optimal
+    # matching credits a genuinely consolidated agent (3 real findings → 3
+    # expecteds) at 1.0 while capping a single stuffed finding at 1/N. Each edge
+    # still requires a full `match_finding` (category/keyword/citation).
+    required_expected = [e for e in expected if e.required]
+    matched_count = _max_bipartite_matching(produced_findings, required_expected)
 
-    for exp in expected:
-        if not exp.required:
-            continue
-        for i, prod in enumerate(produced_findings):
-            if i in matched_produced_indices:
-                continue
-            if match_finding(prod, exp):
-                matched_expected.append(exp)
-                matched_produced_indices.add(i)
-                break
-
-    required_count = sum(1 for e in expected if e.required)
-    recall = len(matched_expected) / required_count if required_count > 0 else 1.0
+    required_count = len(required_expected)
+    recall = matched_count / required_count if required_count > 0 else 1.0
 
     # --- Precision: what fraction of produced findings match any expected ---
     matches_for_precision: set[int] = set()

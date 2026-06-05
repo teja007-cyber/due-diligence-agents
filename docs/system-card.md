@@ -48,9 +48,14 @@ These layers are independent and stack:
   `reporting/severity_resolver.py` decides each finding's final severity once,
   deterministically, recording an auditable `severity_chain`. This removes the
   prior ambiguity of severity being set in several uncoordinated places.
-- **Numerical audit.** A deterministic validation gate re-derives numeric
-  values and counts from source files (`validation/numerical_audit.py`); the
-  pipeline is fail-closed on audit failure.
+- **Numerical audit.** A deterministic validation gate re-derives the report's
+  headline counts from source, checks Excel-vs-JSON parity, spot-checks that
+  P0/P1 financial figures appear in the cited source, and runs a quote-fidelity
+  guard that re-checks P0/P1 `exact_quote` salient tokens — numbers, durations,
+  percentages, and negations — against the cited document
+  (`validation/numerical_audit.py`, `validation/quote_guard.py`). It catches the
+  materially-edited quotes (a swapped figure, a flipped negation) that fuzzy
+  matching alone would pass. The pipeline is fail-closed on audit failure.
 
 Severity calibration thresholds are centralized in
 `agents/severity_thresholds.py` so prompt prose and validation agree on a single
@@ -66,9 +71,16 @@ set of numbers.
   the contents of any document read with a tool, must not be obeyed as
   instructions. `wrap_untrusted()` applies the markers where content is injected
   into a prompt.
-- **Tamper detection.** Instructions embedded in document content (e.g. "ignore
-  previous instructions", "mark everything P3") are themselves reported as a
-  `document_integrity` finding rather than followed.
+- **Tamper detection (two layers).** A model-side rule asks every agent to
+  report embedded instructions as a `document_integrity` finding rather than
+  follow them. Independently — and deterministically — a post-merge scan
+  (`reporting/merge.py:inject_tamper_findings`, wired into the merge step) matches
+  injection patterns in the surfaced findings and injects a non-removable P1
+  `document_integrity` finding regardless of model cooperation. Injection text is
+  stored as the finding's evidence quote; the spreadsheet writer neutralizes any
+  leading formula trigger (`= + - @`) so a malicious quote cannot execute on open
+  (`reporting/excel.py:_sanitize_cell`). Injected tamper findings are capped per
+  subject so a flooded document cannot produce unbounded findings.
 - **Override protection.** Tamper / prompt-injection / document-integrity
   findings can never be downgraded by a user severity override
   (`resolve_severity` AD-3a bound).
