@@ -207,6 +207,39 @@ def evaluate_verdict(
         return Verdict.INCONCLUSIVE
 
 
+def _max_bipartite_matching(produced: list[dict[str, Any]], expected: list[ExpectedFinding]) -> int:
+    """Maximum number of *expected* findings matchable to DISTINCT produced findings.
+
+    Standard augmenting-path bipartite matching (Kuhn's algorithm), stdlib only.
+    An edge exists when ``match_finding(produced[i], expected[j])`` holds. Because
+    each produced finding can be assigned to at most one expected, a single
+    keyword-stuffed finding can satisfy only one expected (caps over-credit),
+    while an agent that genuinely produces N distinct findings for N expecteds is
+    credited in full regardless of match order.
+    """
+    if not produced or not expected:
+        return 0
+    # adjacency: produced index -> list of expected indices it can satisfy
+    adj: dict[int, list[int]] = {
+        i: [j for j, e in enumerate(expected) if match_finding(p, e)] for i, p in enumerate(produced)
+    }
+    expected_to_produced: dict[int, int] = {}
+
+    def _augment(p_idx: int, visited: set[int]) -> bool:
+        for e_idx in adj[p_idx]:
+            if e_idx in visited:
+                continue
+            visited.add(e_idx)
+            if e_idx not in expected_to_produced or _augment(expected_to_produced[e_idx], visited):
+                expected_to_produced[e_idx] = p_idx
+                return True
+        return False
+
+    for p_idx in range(len(produced)):
+        _augment(p_idx, set())
+    return len(expected_to_produced)
+
+
 def compute_agent_metrics(
     produced_findings: list[dict[str, Any]],
     ground_truth: GroundTruth,
@@ -224,22 +257,20 @@ def compute_agent_metrics(
     expected = ground_truth.expected_findings
     must_not = ground_truth.must_not_find
 
-    # --- Recall: how many expected (required) findings were matched ---
-    # Recall asks "was each expected risk surfaced SOMEWHERE?", so it is NOT
-    # constrained to distinct produced findings: an agent that legitimately
-    # consolidates two real risks into one well-written finding (e.g. a
-    # non-compete clause whose text also covers the termination provision) must
-    # get credit for both. This is not over-crediting — each expected still
-    # independently requires its own category/keyword/citation match
-    # (`match_finding`), so a finding can only satisfy multiple expecteds when it
-    # genuinely contains each one's discriminating keyword. Precision (below)
-    # keeps the 1:1 discipline that penalises over-production.
-    matched_expected = [
-        exp for exp in expected if exp.required and any(match_finding(prod, exp) for prod in produced_findings)
-    ]
+    # --- Recall: optimal 1:1 (bipartite) matching of required expecteds ---
+    # Each required expected is matched to a DISTINCT produced finding via
+    # maximum bipartite matching (`_max_bipartite_matching`). This is the right
+    # middle ground between greedy 1:1 (which under-credits when match order is
+    # unlucky) and unconstrained many-to-one (which lets ONE keyword-stuffed
+    # finding satisfy several expecteds — an over-credit masking hole). Optimal
+    # matching credits a genuinely consolidated agent (3 real findings → 3
+    # expecteds) at 1.0 while capping a single stuffed finding at 1/N. Each edge
+    # still requires a full `match_finding` (category/keyword/citation).
+    required_expected = [e for e in expected if e.required]
+    matched_count = _max_bipartite_matching(produced_findings, required_expected)
 
-    required_count = sum(1 for e in expected if e.required)
-    recall = len(matched_expected) / required_count if required_count > 0 else 1.0
+    required_count = len(required_expected)
+    recall = matched_count / required_count if required_count > 0 else 1.0
 
     # --- Precision: what fraction of produced findings match any expected ---
     matches_for_precision: set[int] = set()

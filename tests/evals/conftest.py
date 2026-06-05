@@ -21,22 +21,29 @@ logger = logging.getLogger(__name__)
 def aggregate_metrics_median(samples: list[AgentEvalMetrics]) -> AgentEvalMetrics:
     """Collapse N stochastic eval samples into per-field medians.
 
-    Median (not max/best-of-N) is a consistent estimator: it strips the
-    single-unlucky-draw swing in a stochastic LLM run without letting one lucky
-    high draw rescue a genuinely degraded agent — so it de-noises the signal
-    without masking a real regression. ``finding_count`` uses ``median_low`` to
-    stay an integer. A single sample returns itself unchanged (default behavior).
+    Uses ``statistics.median_low`` for EVERY field — always an observed order
+    statistic (a value some sample actually produced), never the mean-of-two that
+    plain ``median`` returns for an even count. This preserves the no-best-of-N
+    invariant even when the surviving-sample count is even (e.g. 1 of 3 dropped):
+    a single lucky high draw can never pull the aggregate above the lower of the
+    two central survivors. ``f1_score`` is recomputed from the aggregated recall
+    and precision so the row is internally self-consistent rather than an
+    independent median that could contradict its own recall/precision. A single
+    sample returns itself unchanged (default DD_EVAL_SAMPLES=1 behavior).
     """
     if not samples:
         raise ValueError("aggregate_metrics_median requires at least one sample")
+    recall = statistics.median_low(m.finding_recall for m in samples)
+    precision = statistics.median_low(m.finding_precision for m in samples)
+    f1 = 2.0 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
     return AgentEvalMetrics(
         agent_name=samples[0].agent_name,
-        finding_recall=statistics.median(m.finding_recall for m in samples),
-        finding_precision=statistics.median(m.finding_precision for m in samples),
-        citation_accuracy=statistics.median(m.citation_accuracy for m in samples),
-        severity_accuracy=statistics.median(m.severity_accuracy for m in samples),
-        false_positive_rate=statistics.median(m.false_positive_rate for m in samples),
-        f1_score=statistics.median(m.f1_score for m in samples),
+        finding_recall=recall,
+        finding_precision=precision,
+        citation_accuracy=statistics.median_low(m.citation_accuracy for m in samples),
+        severity_accuracy=statistics.median_low(m.severity_accuracy for m in samples),
+        false_positive_rate=statistics.median_low(m.false_positive_rate for m in samples),
+        f1_score=f1,
         finding_count=int(statistics.median_low(m.finding_count for m in samples)),
     )
 
@@ -154,9 +161,13 @@ def save_baseline(metrics: dict[str, AgentEvalMetrics]) -> None:
     except Exception:
         pass
 
+    samples = max(1, int(os.environ.get("DD_EVAL_SAMPLES", "1")))
     baseline_obj = EvalBaseline(
         timestamp=datetime.datetime.now(tz=datetime.UTC).isoformat(),
         commit=commit,
+        samples=samples,
+        notes=f"Captured live via --update-baseline at DD_EVAL_SAMPLES={samples} (median-of-N). "
+        "All agents cleared the hard floors (recall>=0.80, fp<=0.15) at capture time.",
         metrics=metrics,
     )
     _BASELINES_DIR.mkdir(parents=True, exist_ok=True)
@@ -434,14 +445,36 @@ def eval_results(
             )
 
         n = len(per_contract_metrics)
+        if n == 0:
+            # Every contract for this agent was excluded (infra noise / majority
+            # guard). Treat as INCONCLUSIVE — skip rather than fabricate a 0.0 row
+            # that would either hard-fail recall on noise or, under
+            # --update-baseline, overwrite a good baseline with zeros.
+            logger.warning(
+                "Agent %s: all contracts inconclusive — excluded from results (no fabricated 0.0)", agent_name
+            )
+            continue
+
+        # Recall/FP use the WORST contract (min recall / max fp), not the mean, so
+        # a real per-contract regression on one document cannot be averaged away
+        # by a strong showing on another. Quality metrics (citation/severity) and
+        # precision use the mean. f1 is RECOMPUTED from the aggregated recall and
+        # precision so the row is internally self-consistent (never an isolated
+        # median that contradicts its own recall/precision).
+        agg_recall = min(m.finding_recall for m in per_contract_metrics)
+        agg_precision = sum(m.finding_precision for m in per_contract_metrics) / n
+        agg_fp = max(m.false_positive_rate for m in per_contract_metrics)
+        agg_f1 = (
+            2.0 * agg_precision * agg_recall / (agg_precision + agg_recall) if (agg_precision + agg_recall) > 0 else 0.0
+        )
         metrics = AgentEvalMetrics(
             agent_name=agent_name,
-            finding_recall=sum(m.finding_recall for m in per_contract_metrics) / n if n else 0.0,
-            finding_precision=sum(m.finding_precision for m in per_contract_metrics) / n if n else 0.0,
-            citation_accuracy=sum(m.citation_accuracy for m in per_contract_metrics) / n if n else 0.0,
-            severity_accuracy=sum(m.severity_accuracy for m in per_contract_metrics) / n if n else 0.0,
-            false_positive_rate=sum(m.false_positive_rate for m in per_contract_metrics) / n if n else 0.0,
-            f1_score=sum(m.f1_score for m in per_contract_metrics) / n if n else 0.0,
+            finding_recall=agg_recall,
+            finding_precision=agg_precision,
+            citation_accuracy=sum(m.citation_accuracy for m in per_contract_metrics) / n,
+            severity_accuracy=sum(m.severity_accuracy for m in per_contract_metrics) / n,
+            false_positive_rate=agg_fp,
+            f1_score=agg_f1,
             finding_count=total_findings,
         )
         results[agent_name] = metrics
@@ -539,11 +572,24 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not _session_metrics:
         logger.warning("--update-baseline: no metrics captured (no live eval ran) — baseline unchanged")
         return
-    # Save regardless of exitstatus. A baseline records CURRENT measured reality;
-    # if a metric is below threshold the recapture must still persist it (the
-    # operator is deliberately re-baselining), otherwise a stale/placeholder
-    # baseline that fails the suite would deadlock the recapture forever. The
-    # threshold tests (recall/FP) under --update-baseline are skipped for the
-    # regression check; any hard-threshold failure is informational here.
+    # Refuse to bake a degraded baseline. Every conclusive agent must clear the
+    # HARD floors (recall >= 0.80, fp <= 0.15) before we persist — otherwise the
+    # next run's no-regression gate would compare against a regression. This does
+    # NOT re-introduce the placeholder deadlock: test_no_regression already skips
+    # under --update-baseline, and n==0 agents are excluded upstream (never a
+    # fabricated 0.0). A sub-floor agent is a real quality problem to fix first.
+    sub_floor = {
+        a: (m.finding_recall, m.false_positive_rate)
+        for a, m in _session_metrics.items()
+        if m.finding_recall < 0.80 or m.false_positive_rate > 0.15
+    }
+    if sub_floor:
+        logger.error(
+            "--update-baseline: REFUSING to save — %d agent(s) below hard floors "
+            "(recall>=0.80, fp<=0.15): %s. Fix the agent/ground-truth, then re-capture.",
+            len(sub_floor),
+            sub_floor,
+        )
+        return
     save_baseline(_session_metrics)
     logger.info("Baseline updated with %d agent metrics (exit status %d)", len(_session_metrics), exitstatus)

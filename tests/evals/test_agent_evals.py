@@ -31,31 +31,25 @@ from .models import (
     Verdict,
 )
 
-# Default ambiguity band for the near-deterministic quality metrics (citation /
-# severity accuracy) when a ground-truth file does not specify one. Recall and
-# false-positive thresholds are deliberately NOT banded — see the module tests.
-_DEFAULT_QUALITY_ZONE = 0.10
+# Narrow ambiguity band for the near-deterministic quality metrics (citation /
+# severity accuracy, normally ~1.0). Deliberately SMALL and FIXED — not derived
+# from per-agent ground-truth `ambiguity_zone` (which can be 0.15–0.20 on
+# edge-case contracts and, applied agent-wide, would silently skip a real >15%
+# calibration drop). Recall and false-positive thresholds are never banded.
+# An INCONCLUSIVE result is NOT auto-skipped: it is checked against the stored
+# baseline and fails on any drop beyond this band (see the tests below).
+_QUALITY_BAND = 0.05
 
 
-def _agent_ambiguity_zone(agent_name: str) -> float:
-    """Max ``ambiguity_zone`` declared across an agent's ground-truth files.
-
-    Lets a contract opt into a wider inconclusive band for the near-deterministic
-    quality metrics; falls back to :data:`_DEFAULT_QUALITY_ZONE`. Pure file read,
-    no model calls.
-    """
-    import json
-    from pathlib import Path
-
-    expected_dir = Path(__file__).parent / "ground_truth" / "expected" / agent_name
-    zones = [_DEFAULT_QUALITY_ZONE]
-    if expected_dir.is_dir():
-        for gt_file in expected_dir.glob("*.json"):
-            try:
-                zones.append(float(json.loads(gt_file.read_text()).get("ambiguity_zone", 0.0)))
-            except (json.JSONDecodeError, OSError, TypeError, ValueError):
-                continue
-    return max(zones)
+def _baseline_metric(baseline: EvalBaseline | None, agent_name: str, field: str) -> float | None:
+    """Return a stored baseline metric value for *agent_name*, or ``None``."""
+    if baseline is None:
+        return None
+    agent_baseline = baseline.metrics.get(agent_name)
+    if agent_baseline is None:
+        return None
+    value = getattr(agent_baseline, field, None)
+    return float(value) if value is not None else None
 
 
 class TestCategoryMatch:
@@ -119,34 +113,48 @@ class TestAgentEvals:
         """Agent must find at least 80% of expected findings."""
         assert agent_metrics.finding_recall >= 0.80
 
-    def test_citation_accuracy(self, agent_metrics: AgentEvalMetrics) -> None:
+    @staticmethod
+    def _assert_quality_metric(
+        value: float, threshold: float, field: str, agent: str, baseline: EvalBaseline | None
+    ) -> None:
+        """Gate a near-deterministic quality metric (citation/severity) without masking.
+
+        - ``value >= threshold`` → PASS.
+        - ``value < threshold - _QUALITY_BAND`` → hard FAIL (clearly below).
+        - In between (INCONCLUSIVE): NOT skipped. Compare to the stored baseline —
+          fail if the metric dropped more than ``_QUALITY_BAND`` below baseline
+          (a real regression); only skip when there is no baseline to compare.
+        """
+        verdict = evaluate_verdict(value, threshold, ambiguity_zone=_QUALITY_BAND)
+        if verdict == Verdict.FAIL:
+            raise AssertionError(f"{field}={value:.2f} for {agent} is below {threshold} - {_QUALITY_BAND} band")
+        if verdict == Verdict.INCONCLUSIVE:
+            base = _baseline_metric(baseline, agent, field)
+            if base is None:
+                pytest.skip(f"{field}={value:.2f} for {agent} inside band; no baseline to compare")
+            assert value >= base - _QUALITY_BAND, (
+                f"{field}={value:.2f} for {agent} regressed >{_QUALITY_BAND} below baseline {base:.2f}"
+            )
+
+    def test_citation_accuracy(self, agent_metrics: AgentEvalMetrics, baseline: EvalBaseline | None) -> None:
         """At least 90% of matched findings must have correct citations.
 
-        Routed through the three-valued verdict: a value inside the ground
-        truth's ``ambiguity_zone`` is INCONCLUSIVE (logged, not auto-passed); only
-        a value clearly below the band FAILs. Citation accuracy is near-
-        deterministic (typically 1.0), so the band only absorbs rare noise — it
-        can never turn a genuine miss into a pass (see test_eval_robustness).
+        Near-deterministic (typically 1.0). A value just inside the narrow band is
+        checked against the baseline (fails on a real drop), never auto-skipped;
+        a value clearly below the band hard-FAILs.
         """
-        verdict = evaluate_verdict(
-            agent_metrics.citation_accuracy, 0.90, ambiguity_zone=_agent_ambiguity_zone(agent_metrics.agent_name)
+        self._assert_quality_metric(
+            agent_metrics.citation_accuracy, 0.90, "citation_accuracy", agent_metrics.agent_name, baseline
         )
-        if verdict == Verdict.INCONCLUSIVE:
-            pytest.skip(f"citation_accuracy={agent_metrics.citation_accuracy:.2f} inside ambiguity band (inconclusive)")
-        assert verdict == Verdict.PASS, f"citation_accuracy={agent_metrics.citation_accuracy:.2f} below 0.90 band"
 
-    def test_severity_calibration(self, agent_metrics: AgentEvalMetrics) -> None:
+    def test_severity_calibration(self, agent_metrics: AgentEvalMetrics, baseline: EvalBaseline | None) -> None:
         """At least 75% of matched findings must have severity in acceptable range.
 
-        Same three-valued treatment as citation accuracy: inconclusive inside the
-        band, hard FAIL clearly below it.
+        Same baseline-backed band treatment as citation accuracy — no auto-skip.
         """
-        verdict = evaluate_verdict(
-            agent_metrics.severity_accuracy, 0.75, ambiguity_zone=_agent_ambiguity_zone(agent_metrics.agent_name)
+        self._assert_quality_metric(
+            agent_metrics.severity_accuracy, 0.75, "severity_accuracy", agent_metrics.agent_name, baseline
         )
-        if verdict == Verdict.INCONCLUSIVE:
-            pytest.skip(f"severity_accuracy={agent_metrics.severity_accuracy:.2f} inside ambiguity band (inconclusive)")
-        assert verdict == Verdict.PASS, f"severity_accuracy={agent_metrics.severity_accuracy:.2f} below 0.75 band"
 
     def test_false_positive_rate(self, agent_metrics: AgentEvalMetrics) -> None:
         """False positive rate must be at most 15%."""
@@ -471,12 +479,9 @@ class TestComputeAgentMetrics:
 
         assert metrics.finding_recall == 1.0
 
-    def test_one_finding_covering_two_real_risks_credits_both(self) -> None:
-        """Recall is many-to-one: a single finding that genuinely contains BOTH
-        expecteds' discriminating keywords credits both (an agent that legitimately
-        consolidates a non-compete + termination clause is not penalised)."""
-        # Both expecteds accept the agent's actual category ("labor_compliance")
-        # via alternative_categories — mirroring the real HR ground truth.
+    def test_distinct_findings_match_one_to_one(self) -> None:
+        """Bipartite recall: two DISTINCT produced findings, each matching one
+        expected, credit both (genuine coverage scores 1.0)."""
         expected = [
             ExpectedFinding(
                 category="non_compete",
@@ -491,18 +496,52 @@ class TestComputeAgentMetrics:
         ]
         produced: list[dict[str, Any]] = [
             make_finding_dict(
-                category="labor_compliance",
-                title="24-month non-compete and termination terms",
-                description="The non-compete runs 24 months; termination without cause requires 8 weeks notice.",
+                category="labor_compliance", title="24-month non-compete", description="non-compete clause"
+            ),
+            make_finding_dict(
+                category="labor_compliance", title="Termination terms", description="termination without cause, 8 weeks"
             ),
         ]
         gt = self._make_ground_truth(expected=expected)
         metrics = compute_agent_metrics(produced, gt)
-        assert metrics.finding_recall == 1.0  # both required risks surfaced by one finding
+        assert metrics.finding_recall == 1.0
 
-    def test_many_to_one_does_not_overcredit_off_keyword(self) -> None:
-        """A consolidated finding only credits expecteds whose keyword it actually
-        contains — it cannot satisfy an unrelated expected by category alone."""
+    def test_single_stuffed_finding_cannot_overcredit(self) -> None:
+        """Anti-masking: ONE finding stuffed with multiple expecteds' keywords can
+        satisfy only ONE expected under 1:1 bipartite matching (caps recall at 1/N),
+        so keyword-stuffing cannot fake coverage of distinct risks."""
+        expected = [
+            ExpectedFinding(
+                category="non_compete",
+                alternative_categories=["key_talent_retention"],
+                must_contain_keywords=["non-compete"],
+            ),
+            ExpectedFinding(
+                category="termination_provisions",
+                alternative_categories=["key_talent_retention"],
+                must_contain_keywords=["severance"],
+            ),
+            ExpectedFinding(
+                category="change_of_control",
+                alternative_categories=["key_talent_retention"],
+                must_contain_keywords=["accelerat"],
+            ),
+        ]
+        produced: list[dict[str, Any]] = [
+            # One finding mentioning ALL three keywords + the shared alt-category.
+            make_finding_dict(
+                category="key_talent_retention",
+                title="Executive terms",
+                description="non-compete, severance, and acceleration on change of control",
+            ),
+        ]
+        gt = self._make_ground_truth(expected=expected)
+        metrics = compute_agent_metrics(produced, gt)
+        assert metrics.finding_recall == pytest.approx(1 / 3)  # only one expected can be credited
+
+    def test_match_requires_keyword_not_just_category(self) -> None:
+        """A finding only credits expecteds whose keyword it actually contains —
+        it cannot satisfy an expected by category alone."""
         expected = [
             ExpectedFinding(
                 category="non_compete",

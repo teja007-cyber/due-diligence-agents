@@ -11,6 +11,8 @@ reliable without masking real regressions:
 
 from __future__ import annotations
 
+import pytest
+
 from .conftest import aggregate_metrics_median
 from .metrics import evaluate_verdict
 from .models import AgentEvalMetrics, Verdict
@@ -42,31 +44,39 @@ def test_median_picks_middle_sample_not_best() -> None:
         _m(recall=1.0, precision=0.8, f1=0.8, count=6),
     ]
     agg = aggregate_metrics_median(samples)
-    assert agg.finding_recall == 0.75  # middle, not 1.0
-    assert agg.f1_score == 0.633
+    assert agg.finding_recall == 0.75  # middle order statistic, not 1.0
+    assert agg.finding_precision == 0.625
+    # f1 is RECOMPUTED from aggregated recall/precision (self-consistent), not an
+    # independent median: 2*0.625*0.75/(0.625+0.75).
+    assert agg.f1_score == pytest.approx(2 * 0.625 * 0.75 / (0.625 + 0.75))
     assert agg.finding_count == 8  # median of 8/10/6
 
 
 def test_median_single_sample_is_identity() -> None:
-    """DD_EVAL_SAMPLES=1 (default) must behave exactly like today."""
-    only = _m(recall=0.75, precision=0.625, f1=0.633, count=10)
+    """DD_EVAL_SAMPLES=1 (default) must behave exactly like today (f1 recomputed,
+    which for a single sample equals 2pr/(p+r) of that sample)."""
+    only = _m(recall=0.8, precision=0.8, f1=0.8, count=10)
     agg = aggregate_metrics_median([only])
     assert agg.finding_recall == only.finding_recall
-    assert agg.f1_score == only.f1_score
+    assert agg.finding_precision == only.finding_precision
+    assert agg.f1_score == pytest.approx(0.8)
     assert agg.finding_count == only.finding_count
     assert agg.agent_name == only.agent_name
 
 
-def test_median_even_count_uses_low_median_for_count() -> None:
-    """finding_count stays an integer (statistics.median_low) for even N."""
+def test_median_even_count_uses_low_order_statistic() -> None:
+    """For an even surviving count, every field is an observed order statistic
+    (median_low), never the mean-of-two — preserving the no-best-of-N invariant."""
     agg = aggregate_metrics_median(
         [
-            _m(recall=1.0, precision=1.0, f1=1.0, count=4),
+            _m(recall=0.5, precision=0.6, f1=0.55, count=4),
             _m(recall=1.0, precision=1.0, f1=1.0, count=6),
         ]
     )
+    # median_low of [0.5, 1.0] is 0.5 (the lower survivor), NOT 0.75.
+    assert agg.finding_recall == 0.5
+    assert agg.finding_count == 4
     assert isinstance(agg.finding_count, int)
-    assert agg.finding_count in (4, 6)
 
 
 def test_median_one_lucky_draw_cannot_rescue_degraded_recall() -> None:

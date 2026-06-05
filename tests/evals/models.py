@@ -475,4 +475,13 @@ class EvalBaseline(BaseModel):
 
     timestamp: str = Field(default="", description="ISO-8601 timestamp when baseline was recorded")
     commit: str = Field(default="", description="Git commit hash when baseline was recorded")
+    notes: str = Field(
+        default="",
+        description="Free-text provenance for the capture (e.g. sampling N, hybrid composition). "
+        "Typed so it round-trips through model_validate/model_dump rather than being silently dropped.",
+    )
+    samples: int = Field(
+        default=1,
+        description="DD_EVAL_SAMPLES used for this capture (median-of-N); 1 = single sample.",
+    )
     metrics: dict[str, AgentEvalMetrics] = Field(default_factory=dict, description="Agent name -> metrics mapping")
