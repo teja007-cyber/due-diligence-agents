@@ -212,7 +212,9 @@ class PromptBuilder:
     """Assembles self-contained agent prompts from templates and runtime data."""
 
     # Prompt version tracking (Issue #146) — bump on prompt changes
-    PROMPT_VERSION: str = "2.0.0"
+    # 2.1.0: HR specialist prompt — surface each workforce risk as a distinct
+    # finding (removed the "defer to Legal" suppression; added granularity rule).
+    PROMPT_VERSION: str = "2.1.0"
 
     def __init__(
         self,
