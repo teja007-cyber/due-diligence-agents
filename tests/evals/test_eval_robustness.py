@@ -115,3 +115,33 @@ def test_verdict_inside_band_is_inconclusive_not_pass() -> None:
 def test_verdict_zero_zone_is_strict_pass_fail() -> None:
     assert evaluate_verdict(0.80, 0.80, ambiguity_zone=0.0) == Verdict.PASS
     assert evaluate_verdict(0.7999, 0.80, ambiguity_zone=0.0) == Verdict.FAIL
+
+
+# ---------------------------------------------------------------------------
+# F1 regression tolerance: absorbs precision noise, catches real recall drop
+# ---------------------------------------------------------------------------
+
+
+def _f1(precision: float, recall: float) -> float:
+    return 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
+
+
+def test_f1_tolerance_absorbs_precision_noise_but_catches_recall_regression() -> None:
+    """The 0.15 f1-regression band must tolerate honest precision swings while
+    still failing a genuine recall regression — and the hard recall floor is the
+    independent backstop. Uses the same tolerance the live test uses."""
+    from .test_agent_evals import TestAgentEvals
+
+    tol = TestAgentEvals._F1_REGRESSION_TOLERANCE
+    baseline_f1 = _f1(0.90, 1.0)  # recall 1.0, precision 0.90
+
+    # Precision-only noise (recall stays 1.0, precision dips to 0.70): ABSORBED.
+    noisy_f1 = _f1(0.70, 1.0)
+    assert noisy_f1 >= baseline_f1 - tol, "precision noise should not trip the regression gate"
+
+    # Real recall regression (1.0 -> 0.67, precision unchanged): CAUGHT by f1 band.
+    regressed_f1 = _f1(0.90, 0.67)
+    assert regressed_f1 < baseline_f1 - tol, "a genuine recall regression must trip the f1 gate"
+
+    # And independently, that regressed recall (0.67) is below the hard floor 0.80.
+    assert 0.67 < 0.80

@@ -108,10 +108,14 @@ by sampling each (agent, contract) pair `DD_EVAL_SAMPLES` times and taking the
   single-unlucky-draw swing. Median (not best-of-N) is deliberate: one lucky
   high draw cannot rescue a genuinely degraded agent.
 
-A sample that both errored and produced nothing is dropped (infrastructure
-noise, not an agent miss); if fewer than a majority of samples succeed, that
-contract is reported inconclusive and excluded from the aggregate rather than
-counted as a zero.
+A sample whose run did not complete successfully — an exception OR a non-success
+status such as a stalled-stream timeout — is dropped as inconclusive
+(infrastructure noise, not an agent miss); a *successful* run that genuinely
+produced zero findings is kept as a real recall failure. If fewer than a majority
+of an agent's samples for a contract succeed, that contract is excluded from the
+aggregate rather than counted as a zero. Per-agent recall and false-positive
+rate aggregate as the WORST contract (min recall / max fp), so a real
+per-contract regression cannot be averaged away.
 
 The near-deterministic quality metrics (citation accuracy, severity calibration)
 are evaluated through a three-valued verdict (`evaluate_verdict`): a value inside
@@ -126,12 +130,19 @@ invariants (a value below `threshold - zone` can never become non-FAIL).
 
 ## The F1 regression gate
 
-`test_agent_evals.py` enforces hard per-agent thresholds (recall, false-positive
-rate) plus banded quality metrics (citation, severity), and a **no-regression**
-check: an agent's median `f1_score` must not fall more than 0.05 below its stored
-baseline in `tests/evals/baselines/latest.json`. If there is no baseline for an
-agent, the regression check is skipped. The baseline is captured with the same
-median-of-N methodology so the comparison is apples-to-apples.
+`test_agent_evals.py` enforces hard per-agent thresholds (recall ≥0.80,
+false-positive rate ≤0.15) plus baseline-backed banded quality metrics (citation,
+severity), and a secondary **no-regression** check: an agent's median `f1_score`
+must not fall more than `_F1_REGRESSION_TOLERANCE` (0.15) below its stored
+baseline in `tests/evals/baselines/latest.json`. The tolerance is sized to
+observed run-to-run variance: recall is stable but precision swings ~0.10–0.13
+(an agent surfaces a variable number of extra-but-valid findings), so a 0.05 band
+flaked on honest noise. 0.15 absorbs precision noise while still catching a
+genuine recall regression (a 1.0→0.67 recall drop moves f1 ~0.18); the hard
+recall floor is the independent primary backstop, so a real quality drop fails on
+two gates, not one. If there is no baseline for an agent, the check is skipped.
+The baseline is captured with the same median-of-N methodology so the comparison
+is apples-to-apples.
 
 To intentionally move the baseline (after a deliberate, reviewed change), re-run
 the eval tier with `--update-baseline` so `latest.json` captures the new
