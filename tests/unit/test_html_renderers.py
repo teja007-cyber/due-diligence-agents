@@ -1325,6 +1325,12 @@ class TestMethodologyRenderer:
         assert "Entities Analyzed" in html_out
         assert ">2</div>" in html_out  # 2 entities in test data
 
+    def test_methodology_agent_coverage_caption(self) -> None:
+        """Agent Coverage table should have an accessible caption."""
+        computed = _compute()
+        r = MethodologyRenderer(computed, _make_merged_data())
+        html_out = r.render()
+        assert "<caption>Agent coverage by domain</caption>" in html_out
 
 # ===========================================================================
 # CSS Custom Properties (Issue #113 E1)
