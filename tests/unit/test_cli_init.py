@@ -415,15 +415,15 @@ class TestCliNonInteractive:
                 "--data-room",
                 str(dr),
                 "--buyer",
-                "Acme Holdings",
+                "Summit Industrial Group",
                 "--target",
-                "NovaBridge Solutions",
+                "Northwind Logistics Software",
                 "--deal-type",
                 "merger",
                 "--focus-areas",
                 "change_of_control_clauses,ip_ownership,revenue_recognition",
                 "--name-variants",
-                "NovaBridge,NovaBridge Inc.",
+                "Northwind,Northwind Inc.",
                 "--output",
                 str(output),
             ],
@@ -432,8 +432,8 @@ class TestCliNonInteractive:
 
         config = json.loads(output.read_text())
         validated = validate_deal_config(config)
-        assert validated.buyer.name == "Acme Holdings"
-        assert validated.target.name == "NovaBridge Solutions"
+        assert validated.buyer.name == "Summit Industrial Group"
+        assert validated.target.name == "Northwind Logistics Software"
         assert validated.deal.type.value == "merger"
 
     def test_output_includes_next_steps(self, tmp_path: Path) -> None:

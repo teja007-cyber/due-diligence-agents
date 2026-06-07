@@ -170,9 +170,9 @@ class TestDealKnowledgeBaseCRUD:
         assert entities[0].id == "a1"
 
     def test_search_articles_by_title(self, kb: DealKnowledgeBase) -> None:
-        kb.write_article(_make_article("a1", title="NovaBridge Software Profile"))
+        kb.write_article(_make_article("a1", title="Northwind Logistics Software Profile"))
         kb.write_article(_make_article("a2", title="Pinnacle Analytics Profile"))
-        results = kb.search_articles("novabridge")
+        results = kb.search_articles("northwind")
         assert len(results) == 1
         assert results[0].id == "a1"
 

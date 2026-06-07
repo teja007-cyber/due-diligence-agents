@@ -1,65 +1,65 @@
 {
   "config_version": "1.0.0",
   "buyer": {
-    "name": "Meridian Capital Partners",
+    "name": "Summit Industrial Group",
     "ticker": "MCP",
     "exchange": "NYSE",
     "notes": "Strategic acquirer focused on B2B SaaS platforms"
   },
   "target": {
-    "name": "NovaBridge Software",
+    "name": "Northwind Logistics Software",
     "subsidiaries": [
-      "NovaBridge Analytics Ltd",
-      "NovaBridge Cloud Services GmbH"
+      "Northwind Analytics Ltd",
+      "Northwind Cloud Services GmbH"
     ],
     "previous_names": [
       {
-        "name": "BridgePoint Solutions",
+        "name": "BridgePoint Software",
         "period": "2015-2020",
         "notes": "Rebranded after Series C funding round"
       }
     ],
     "acquired_entities": [
       {
-        "name": "DataLoom Inc",
+        "name": "DataLoom Analytics",
         "acquisition_date": "2022-06-15",
         "deal_type": "acquisition",
         "notes": "Acqui-hire for ML engineering team"
       },
       {
-        "name": "CloudMetrix Systems",
+        "name": "RouteMetrix Systems",
         "acquisition_date": "2023-03-01",
         "deal_type": "acquisition",
         "notes": "Product tuck-in for monitoring capabilities"
       }
     ],
     "entity_name_variants_for_contract_matching": [
-      "NovaBridge",
-      "Nova Bridge",
-      "NovaBridge Software Inc",
-      "NovaBridge Software, Inc.",
-      "BridgePoint Solutions"
+      "Northwind",
+      "North Wind",
+      "Northwind Logistics Software Inc",
+      "Northwind Logistics Software, Inc.",
+      "BridgePoint Software"
     ],
-    "notes": "Founded 2015 in Austin TX. ~280 employees. ARR ~$45M."
+    "notes": "Founded 2015 in Columbus OH. ~280 employees. ARR ~$45M."
   },
   "entity_aliases": {
     "canonical_to_variants": {
-      "NovaBridge Software": [
-        "NovaBridge",
-        "Nova Bridge",
-        "NovaBridge Software Inc",
-        "NovaBridge Software, Inc.",
+      "Northwind Logistics Software": [
+        "Northwind",
+        "North Wind",
+        "Northwind Logistics Software Inc",
+        "Northwind Logistics Software, Inc.",
         "NBSW"
       ],
-      "BridgePoint Solutions": [
+      "BridgePoint Software": [
         "BridgePoint",
         "Bridge Point Solutions"
       ],
-      "DataLoom Inc": [
+      "DataLoom Analytics": [
         "DataLoom",
         "Data Loom"
       ],
-      "CloudMetrix Systems": [
+      "RouteMetrix Systems": [
         "CloudMetrix",
         "Cloud Metrix"
       ]
@@ -80,11 +80,11 @@
       "Demo Customer"
     ],
     "parent_child": {
-      "NovaBridge Software": [
-        "NovaBridge Analytics Ltd",
-        "NovaBridge Cloud Services GmbH",
-        "DataLoom Inc",
-        "CloudMetrix Systems"
+      "Northwind Logistics Software": [
+        "Northwind Analytics Ltd",
+        "Northwind Cloud Services GmbH",
+        "DataLoom Analytics",
+        "RouteMetrix Systems"
       ]
     }
   },
@@ -113,25 +113,25 @@
     {
       "name": "Executive A",
       "title": "CEO",
-      "company": "NovaBridge Software",
+      "company": "Northwind Logistics Software",
       "notes": "Co-founder, former VP Engineering at CloudPlatform Co"
     },
     {
       "name": "Executive B",
       "title": "CFO",
-      "company": "NovaBridge Software",
+      "company": "Northwind Logistics Software",
       "notes": "Joined 2021 from prior role"
     },
     {
       "name": "Executive C",
       "title": "CTO",
-      "company": "NovaBridge Software",
+      "company": "Northwind Logistics Software",
       "notes": "Co-founder, leads product and engineering"
     },
     {
       "name": "Executive D",
       "title": "VP Sales",
-      "company": "NovaBridge Software",
+      "company": "Northwind Logistics Software",
       "notes": "Manages enterprise sales team of 35"
     }
   ],

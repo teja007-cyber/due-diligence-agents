@@ -8,8 +8,8 @@ moat = cross-domain cross-referencing, proof = forensic citation.
 > whole repo — the quickstart (`examples/project-atlas/`), the public sample report
 > (`docs/sample-report/index.html`, regenerated via `scripts/generate_sample_report.py`), the launch
 > demo/recordings, the docs, and a unit guard test (`tests/unit/test_project_atlas_example.py`).
-> The old NovaBridge/Acme quickstart, the hardcoded-mock sample generator, and the NovaBridge-era
-> demo tape/script/showcase/video have been retired.
+> All prior placeholder deals, the hardcoded-mock sample generator, and the legacy
+> demo tape/script/showcase/video have been retired — Atlas is the only sample in the repo.
 
 ## 1. The demo deal — "Project Atlas" (the foundation)
 `examples/project-atlas/` — a 100% synthetic M&A deal engineered so the product's hero

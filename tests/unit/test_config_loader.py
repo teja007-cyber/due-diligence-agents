@@ -36,12 +36,12 @@ class TestLoadValidConfig:
     def test_buyer_name(self) -> None:
         path = FIXTURES_DIR / "deal_config_valid.json"
         config = load_deal_config(path)
-        assert config.buyer.name == "Meridian Capital Partners"
+        assert config.buyer.name == "Summit Industrial Group"
 
     def test_target_name(self) -> None:
         path = FIXTURES_DIR / "deal_config_valid.json"
         config = load_deal_config(path)
-        assert config.target.name == "NovaBridge Software"
+        assert config.target.name == "Northwind Logistics Software"
 
     def test_deal_type(self) -> None:
         path = FIXTURES_DIR / "deal_config_valid.json"
