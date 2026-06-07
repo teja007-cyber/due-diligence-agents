@@ -38,7 +38,7 @@
 ---
 
 <details>
-<summary><strong>CLI Inteface Walkthrough Recording</strong></summary>
+<summary><strong>CLI Interface Walkthrough Recording</strong></summary>
   
 https://github.com/user-attachments/assets/03ae7e38-8280-488c-898a-61c1a361bb7d
 

@@ -48,11 +48,11 @@
   <text x="64" y="90" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="42" font-weight="800" fill="white" letter-spacing="-0.5">Due Diligence Agents</text>
 
   <!-- Tagline -->
-  <text x="64" y="130" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="20" fill="#94a3b8">Find what gets buried in the data room</text>
+  <text x="64" y="130" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="20" fill="#94a3b8">Legal flags a risk. Finance another. We connect and cite.</text>
 
   <!-- Subtitle -->
-  <text x="64" y="168" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="15" fill="#64748b">Open-source AI-powered M&amp;A due diligence — every contract,</text>
-  <text x="64" y="188" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="15" fill="#64748b">cross-referenced across 9 domains, traced to exact citations</text>
+  <text x="64" y="168" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="15" fill="#64748b">Open-source forensic M&amp;A due diligence — 13 AI agents read your data room,</text>
+  <text x="64" y="188" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="15" fill="#64748b">cross-reference findings no single reviewer connects, and cite every one.</text>
 
   <!-- ========== STAT BOXES ROW ========== -->
   <g transform="translate(64, 218)">
