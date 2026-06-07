@@ -4,7 +4,7 @@ Reproducible, high-quality recording scripts for the launch video and Product Hu
 All terminal recordings use [VHS](https://github.com/charmbracelet/vhs) (`brew install vhs`) so they
 render identically every time — no live typing, no mistakes, no flaky timing.
 
-## House style (matches `../demo-v1.6.tape`)
+## House style
 - 1920×1080, `FontSize 18`, `Catppuccin Mocha`, `Framerate 30`, `TypingSpeed 25ms`, `Padding 30`.
 - Run every tape **from the repo root**: `vhs docs/marketing/recordings/<name>.tape`.
 - Output MP4s land in `../assets/` (kept out of the recordings dir to separate source from artifact).

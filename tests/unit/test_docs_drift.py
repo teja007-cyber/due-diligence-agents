@@ -41,7 +41,7 @@ _PRIMARY_DOCS = [
     "docs/agent-customization.md",
     "docs/search-guide.md",
     "docs/knowledge-architecture.md",
-    "examples/quickstart/README.md",
+    "examples/project-atlas/README.md",
 ]
 
 

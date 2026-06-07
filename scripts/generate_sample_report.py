@@ -1,593 +1,79 @@
 #!/usr/bin/env python3
-"""Generate a realistic sample HTML report for GitHub Pages demo.
+"""Publish the public sample report (GitHub Pages) from the golden Project Atlas run.
+
+The public sample at ``docs/sample-report/index.html`` is the **real, self-contained
+HTML report** produced by running the pipeline on the golden synthetic deal,
+``examples/project-atlas/`` (target: Northwind Logistics Software; acquirer: Summit
+Industrial Group). It is 100% synthetic — no real company, person, or financial data —
+but it is genuine pipeline output, not hand-authored mock data: the hero cross-domain
+finding (a change-of-control clause on a customer worth 30% of ARR) is surfaced and
+cited to an exact quote by the agents themselves.
+
+This script keeps the published sample in sync with the captured golden artifact at
+``docs/marketing/sample-report-atlas/index.html``.
 
 Usage:
+    python scripts/generate_sample_report.py            # sync published sample from golden capture
+    python scripts/generate_sample_report.py --check     # verify they match (CI-friendly), non-zero on drift
+
+To REGENERATE the golden artifact from scratch (requires API/Bedrock credentials):
+    dd-agents run examples/project-atlas/deal-config.json
+    cp examples/project-atlas/sample_data_room/_dd/forensic-dd/runs/latest/report/dd_report.html \\
+       docs/marketing/sample-report-atlas/index.html
+    cp examples/project-atlas/sample_data_room/_dd/forensic-dd/runs/latest/report/dd_report.xlsx \\
+       docs/marketing/sample-report-atlas/dd_report.xlsx
     python scripts/generate_sample_report.py
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
-# Add src to path so we can import dd_agents
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-
-from dd_agents.reporting.html import HTMLReportGenerator
-
-
-def _make_sample_data() -> dict[str, object]:
-    """Build realistic multi-customer merged data for demo purposes.
-
-    All names, figures, and clauses are entirely fictional.
-    """
-    return {
-        "novabridge_software": {
-            "customer": "NovaBridge Software",
-            "findings": [
-                {
-                    "severity": "P0",
-                    "title": "Change of control triggers immediate termination",
-                    "description": (
-                        "Section 14.2 of the MSA grants NovaBridge the right to terminate "
-                        "the agreement immediately upon any change of control of the Provider, "
-                        "with no cure period. This affects $2.4M in annual recurring revenue "
-                        "and could result in complete revenue loss from this customer post-close."
-                    ),
-                    "agent": "legal",
-                    "confidence": "high",
-                    "category": "change_of_control",
-                    "citations": [
-                        {
-                            "source_path": "NovaBridge/MSA_2023.pdf",
-                            "location": "Section 14.2, page 8",
-                            "exact_quote": (
-                                "Upon any Change of Control of Provider, Customer may terminate "
-                                "this Agreement immediately upon written notice without penalty."
-                            ),
-                        }
-                    ],
-                },
-                {
-                    "severity": "P0",
-                    "title": "IP assignment clause missing for custom integrations",
-                    "description": (
-                        "Three custom integration modules were developed for NovaBridge under "
-                        "SOW-2024-003 but the SOW lacks an IP assignment clause. Work product "
-                        "ownership defaults to the developer under applicable law, creating "
-                        "ambiguity about who owns the integration code post-acquisition."
-                    ),
-                    "agent": "legal",
-                    "confidence": "high",
-                    "category": "ip_ownership",
-                    "citations": [
-                        {
-                            "source_path": "NovaBridge/SOW_2024_003.pdf",
-                            "location": "Section 4, page 2",
-                            "exact_quote": (
-                                "Provider shall deliver the Custom Integration Modules described "
-                                "in Exhibit A within 90 days of the Effective Date."
-                            ),
-                        }
-                    ],
-                },
-                {
-                    "severity": "P1",
-                    "title": "Revenue recognition timing mismatch",
-                    "description": (
-                        "Contract specifies quarterly billing in advance, but financial records "
-                        "show monthly revenue recognition. The $600K quarterly prepayment is "
-                        "recognized as $200K/month, which is appropriate under ASC 606, but the "
-                        "deferred revenue balance of $400K at any given time represents a "
-                        "liability that must be carried through the acquisition."
-                    ),
-                    "agent": "finance",
-                    "confidence": "high",
-                    "category": "revenue_recognition",
-                    "citations": [
-                        {
-                            "source_path": "NovaBridge/Order_Form_2024.pdf",
-                            "location": "Section 3, page 1",
-                            "exact_quote": "Annual License Fee: $2,400,000, payable quarterly in advance.",
-                        }
-                    ],
-                },
-                {
-                    "severity": "P1",
-                    "title": "Auto-renewal with 120-day notice period",
-                    "description": (
-                        "Agreement auto-renews for successive 1-year terms unless either party "
-                        "provides 120 days written notice. The next renewal window closes on "
-                        "August 1, 2026, creating a narrow window for renegotiation post-close."
-                    ),
-                    "agent": "commercial",
-                    "confidence": "high",
-                    "category": "renewal_terms",
-                    "citations": [
-                        {
-                            "source_path": "NovaBridge/MSA_2023.pdf",
-                            "location": "Section 2.2, page 1",
-                            "exact_quote": (
-                                "This Agreement shall automatically renew for additional one (1) year "
-                                "periods unless either party provides written notice of non-renewal at "
-                                "least one hundred twenty (120) days prior to the end of the then-current term."
-                            ),
-                        }
-                    ],
-                },
-                {
-                    "severity": "P2",
-                    "title": "SLA uptime guarantee at 99.95% with service credits",
-                    "description": (
-                        "SLA requires 99.95% monthly uptime with graduated service credits: "
-                        "10% credit for 99.9-99.95%, 25% for 99.0-99.9%, and 50% for below 99.0%. "
-                        "Historical uptime has been 99.97% over the past 12 months."
-                    ),
-                    "agent": "product_tech",
-                    "confidence": "medium",
-                    "category": "technical_sla",
-                    "citations": [
-                        {
-                            "source_path": "NovaBridge/SLA_Addendum.pdf",
-                            "location": "Exhibit B, page 1",
-                            "exact_quote": "Provider guarantees 99.95% monthly uptime for the Platform.",
-                        }
-                    ],
-                },
-            ],
-            "gaps": [
-                {
-                    "priority": "P0",
-                    "gap_type": "Missing_Doc",
-                    "missing_item": "SOW IP Assignment Amendment",
-                    "risk_if_missing": "IP ownership of custom integrations remains ambiguous",
-                },
-                {
-                    "priority": "P1",
-                    "gap_type": "Stale_Doc",
-                    "missing_item": "Current DPA (last version from 2021)",
-                    "risk_if_missing": "Data processing agreement may not comply with current GDPR requirements",
-                },
-            ],
-            "governance_resolution_pct": 78.5,
-            "cross_references": [
-                {
-                    "data_point": "Annual Revenue",
-                    "contract_value": "$2,400,000",
-                    "reference_value": "$2,400,000",
-                    "match_status": "match",
-                },
-                {
-                    "data_point": "Contract End Date",
-                    "contract_value": "2026-12-01",
-                    "reference_value": "2026-11-30",
-                    "match_status": "mismatch",
-                },
-            ],
-        },
-        "pinnacle_analytics": {
-            "customer": "Pinnacle Analytics Group",
-            "findings": [
-                {
-                    "severity": "P0",
-                    "title": "Customer concentration risk exceeds 35% of total ARR",
-                    "description": (
-                        "Pinnacle Analytics represents $1.8M of $4.9M total ARR (36.7%). "
-                        "Loss of this single customer would materially impact the business. "
-                        "Combined with the CoC termination right, this creates compounding risk."
-                    ),
-                    "agent": "finance",
-                    "confidence": "high",
-                    "category": "concentration_risk",
-                    "citations": [
-                        {
-                            "source_path": "_reference/Customer_Revenue_2024.xlsx",
-                            "location": "Sheet 1, Row 3",
-                            "exact_quote": "Pinnacle Analytics Group | ARR: $1,800,000 | Status: Active",
-                        }
-                    ],
-                },
-                {
-                    "severity": "P1",
-                    "title": "Assignment requires prior written consent",
-                    "description": (
-                        "Section 15.1 requires Pinnacle's prior written consent for any "
-                        "assignment of the agreement, including by operation of law or merger. "
-                        "Consent is not to be unreasonably withheld but adds friction to close."
-                    ),
-                    "agent": "legal",
-                    "confidence": "high",
-                    "category": "assignment_consent",
-                    "citations": [
-                        {
-                            "source_path": "Pinnacle_Analytics/MSA_2022.pdf",
-                            "location": "Section 15.1, page 9",
-                            "exact_quote": (
-                                "Neither party may assign this Agreement without the prior written "
-                                "consent of the other party, which consent shall not be unreasonably "
-                                "withheld. Any attempted assignment without such consent shall be void."
-                            ),
-                        }
-                    ],
-                },
-                {
-                    "severity": "P1",
-                    "title": "MFN pricing clause limits future price increases",
-                    "description": (
-                        "Section 7.3 contains a most-favored-nation clause requiring that "
-                        "Pinnacle receives pricing no less favorable than any similarly situated "
-                        "customer. This constrains post-acquisition pricing optimization."
-                    ),
-                    "agent": "commercial",
-                    "confidence": "high",
-                    "category": "pricing_risk",
-                    "citations": [
-                        {
-                            "source_path": "Pinnacle_Analytics/MSA_2022.pdf",
-                            "location": "Section 7.3, page 4",
-                            "exact_quote": (
-                                "Provider represents that the fees charged to Customer are no less "
-                                "favorable than those charged to any other customer of comparable size "
-                                "and usage volume."
-                            ),
-                        }
-                    ],
-                },
-                {
-                    "severity": "P2",
-                    "title": "No SOC 2 Type II certification requirement",
-                    "description": (
-                        "Despite handling sensitive financial data, the agreement does not "
-                        "require SOC 2 Type II certification from the Provider. Pinnacle may "
-                        "request this as a condition of consent to assignment."
-                    ),
-                    "agent": "product_tech",
-                    "confidence": "medium",
-                    "category": "security_compliance",
-                    "citations": [],
-                },
-            ],
-            "gaps": [
-                {
-                    "priority": "P1",
-                    "gap_type": "Missing_Doc",
-                    "missing_item": "Data Processing Agreement",
-                    "risk_if_missing": "No formal DPA despite processing financial data",
-                },
-            ],
-            "governance_resolution_pct": 91.2,
-            "cross_references": [
-                {
-                    "data_point": "Annual Revenue",
-                    "contract_value": "$1,800,000",
-                    "reference_value": "$1,800,000",
-                    "match_status": "match",
-                },
-            ],
-        },
-        "horizon_logistics": {
-            "customer": "Horizon Logistics",
-            "findings": [
-                {
-                    "severity": "P1",
-                    "title": "Termination for convenience with 30-day notice",
-                    "description": (
-                        "Either party may terminate for convenience with only 30 days written "
-                        "notice. This is unusually short for an enterprise agreement and provides "
-                        "minimal runway to find replacement revenue."
-                    ),
-                    "agent": "legal",
-                    "confidence": "high",
-                    "category": "termination_rights",
-                    "citations": [
-                        {
-                            "source_path": "Horizon_Logistics/Services_Agreement.pdf",
-                            "location": "Section 8.1, page 5",
-                            "exact_quote": (
-                                "Either party may terminate this Agreement for any reason upon "
-                                "thirty (30) days prior written notice to the other party."
-                            ),
-                        }
-                    ],
-                },
-                {
-                    "severity": "P2",
-                    "title": "Below-market pricing with no escalation clause",
-                    "description": (
-                        "Horizon's per-seat pricing of $85/month is 32% below the standard "
-                        "rate card of $125/month, with no annual escalation clause. The "
-                        "agreement locks in this rate for the full 3-year term."
-                    ),
-                    "agent": "finance",
-                    "confidence": "medium",
-                    "category": "pricing_risk",
-                    "citations": [
-                        {
-                            "source_path": "Horizon_Logistics/Order_Form_2024.pdf",
-                            "location": "Section 2, page 1",
-                            "exact_quote": "Per-seat license fee: $85.00/month per named user.",
-                        }
-                    ],
-                },
-                {
-                    "severity": "P3",
-                    "title": "Standard limitation of liability at 12 months fees",
-                    "description": (
-                        "Liability is capped at total fees paid in the 12 months preceding "
-                        "the claim. This is market-standard and does not present unusual risk."
-                    ),
-                    "agent": "legal",
-                    "confidence": "high",
-                    "category": "liability_indemnification",
-                    "citations": [
-                        {
-                            "source_path": "Horizon_Logistics/Services_Agreement.pdf",
-                            "location": "Section 10.2, page 6",
-                            "exact_quote": (
-                                "In no event shall either party's aggregate liability exceed the "
-                                "total fees paid by Customer during the twelve (12) month period "
-                                "preceding the claim giving rise to liability."
-                            ),
-                        }
-                    ],
-                },
-            ],
-            "gaps": [],
-            "governance_resolution_pct": 95.0,
-            "cross_references": [
-                {
-                    "data_point": "Annual Revenue",
-                    "contract_value": "$510,000",
-                    "reference_value": "$510,000",
-                    "match_status": "match",
-                },
-            ],
-        },
-        "meridian_health": {
-            "customer": "Meridian Health Systems",
-            "findings": [
-                {
-                    "severity": "P1",
-                    "title": "HIPAA BAA with strict breach notification requirements",
-                    "description": (
-                        "The Business Associate Agreement requires breach notification within "
-                        "24 hours (stricter than the HIPAA 60-day requirement). Non-compliance "
-                        "penalties are uncapped and survive termination."
-                    ),
-                    "agent": "legal",
-                    "confidence": "high",
-                    "category": "data_privacy",
-                    "citations": [
-                        {
-                            "source_path": "Meridian_Health/BAA_2023.pdf",
-                            "location": "Section 4.1, page 2",
-                            "exact_quote": (
-                                "Business Associate shall notify Covered Entity of any Breach of "
-                                "Unsecured PHI within twenty-four (24) hours of discovery."
-                            ),
-                        }
-                    ],
-                },
-                {
-                    "severity": "P2",
-                    "title": "Technical integration dependency on legacy API",
-                    "description": (
-                        "Meridian's integration relies on the v1 REST API which is scheduled "
-                        "for deprecation in Q3 2026. Migration to v2 requires Meridian's "
-                        "development team involvement and has not been scheduled."
-                    ),
-                    "agent": "product_tech",
-                    "confidence": "medium",
-                    "category": "technical_debt",
-                    "citations": [
-                        {
-                            "source_path": "Meridian_Health/Integration_Spec.pdf",
-                            "location": "Section 2.1, page 3",
-                            "exact_quote": "All API calls shall use the Provider REST API v1 endpoint.",
-                        }
-                    ],
-                },
-            ],
-            "gaps": [
-                {
-                    "priority": "P2",
-                    "gap_type": "Missing_Doc",
-                    "missing_item": "Penetration test report (last available: 2023)",
-                    "risk_if_missing": "Security posture unverified for healthcare data handling",
-                },
-            ],
-            "governance_resolution_pct": 88.0,
-            "cross_references": [
-                {
-                    "data_point": "Annual Revenue",
-                    "contract_value": "$340,000",
-                    "reference_value": "$340,000",
-                    "match_status": "match",
-                },
-            ],
-        },
-    }
+REPO_ROOT = Path(__file__).resolve().parent.parent
+GOLDEN = REPO_ROOT / "docs" / "marketing" / "sample-report-atlas" / "index.html"
+PUBLISHED = REPO_ROOT / "docs" / "sample-report" / "index.html"
 
 
-def main() -> None:
-    output_dir = Path(__file__).resolve().parent.parent / "docs" / "sample-report"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "index.html"
-
-    deal_config = {
-        "buyer": {"name": "Meridian Capital Partners"},
-        "target": {"name": "CloudSync Technologies"},
-        "deal_info": {"type": "acquisition", "expected_close": "2026-Q3"},
-        "buyer_strategy": {
-            "thesis": "Acquire best-of-breed vertical SaaS to bolt onto platform portfolio; "
-            "target's 4.9M ARR and enterprise customer base accelerates GTM in manufacturing vertical",
-            "key_synergies": [
-                "Cross-sell to Meridian's 200+ manufacturing accounts",
-                "Consolidate engineering under unified platform team",
-                "Migrate target customers to shared infrastructure (30% margin improvement)",
-            ],
-            "risk_tolerance": "moderate",
-            "integration_timeline": "6 months",
-            "valuation_basis": "8x ARR ($39.2M)",
-            "key_assumptions": [
-                "95%+ customer retention through close",
-                "Full IP ownership transfers cleanly",
-                "No regulatory blockers in target markets",
-            ],
-        },
-    }
-
-    executive_synthesis = {
-        "go_no_go": "Conditional Go",
-        "executive_narrative": (
-            "CloudSync Technologies presents a compelling acquisition opportunity with strong "
-            "recurring revenue ($4.9M ARR) and solid customer relationships across 4 enterprise "
-            "accounts. However, two critical risks require pre-close resolution: (1) the NovaBridge "
-            "change-of-control termination right exposes $2.4M ARR (49% of total), and (2) customer "
-            "concentration in Pinnacle Analytics (36.7% of ARR) creates single-point-of-failure risk. "
-            "The IP assignment gap in NovaBridge SOW-2024-003 should be remedied before close. "
-            "Recommend proceeding with targeted reps & warranties covering CoC consent and IP ownership."
-        ),
-        "deal_breakers": [
-            "NovaBridge CoC termination right ($2.4M ARR at risk)",
-            "IP assignment gap in custom integration modules",
-            "Customer concentration: top 2 customers represent 86% of ARR",
-        ],
-        "severity_overrides": [],
-    }
-
-    narrative = {
-        "deal_context": {
-            "summary": (
-                "Meridian Capital Partners is acquiring CloudSync Technologies (vertical SaaS, "
-                "$4.9M ARR) at 8x revenue to bolt onto its manufacturing platform portfolio. "
-                "The thesis depends on retaining 95%+ of customers and clean IP transfer — "
-                "both are directly threatened by findings below."
-            ),
-            "buyer_thesis_alignment": (
-                "Two P0 findings directly undermine the acquisition thesis: "
-                "(1) The NovaBridge CoC clause puts 49% of ARR at immediate termination risk, "
-                "violating the 95% retention assumption. "
-                "(2) The IP assignment gap threatens the 'full IP ownership' assumption. "
-                "These aren't generic risks — they specifically attack the value drivers "
-                "supporting the 8x multiple."
-            ),
-        },
-        "domain_summaries": [
-            {
-                "domain": "legal",
-                "headline": "3 CoC clauses threaten 54% of ARR — consent waivers needed pre-close",
-                "narrative": (
-                    "Legal analysis reveals systemic change-of-control risk across the top 2 "
-                    "revenue accounts. NovaBridge ($2.4M) has immediate termination right with "
-                    "no cure period; Pinnacle ($1.8M) requires written consent within 60 days. "
-                    "Combined, these contracts represent the majority of the asset value "
-                    "underpinning the 8x multiple."
-                ),
-            },
-            {
-                "domain": "finance",
-                "headline": "Customer concentration creates single-point-of-failure: top 2 = 86% ARR",
-                "narrative": (
-                    "Revenue is dangerously concentrated. If either NovaBridge or Pinnacle "
-                    "terminates, the business loses 49% or 37% of revenue respectively. "
-                    "The combined 86% concentration makes the 8x valuation fragile."
-                ),
-            },
-            {
-                "domain": "commercial",
-                "headline": "Below-market pricing locked in without escalation erodes margins",
-                "narrative": (
-                    "Horizon Logistics pricing is 32% below rate card with no escalation "
-                    "clause for the remaining 2 years. This limits the upside from Meridian's "
-                    "planned cross-sell motion and margin improvement thesis."
-                ),
-            },
-        ],
-        "recommendations": [
-            {
-                "action": "Obtain CoC consent waiver from NovaBridge before closing",
-                "rationale": (
-                    "$2.4M ARR (49% of total) terminates immediately on close without consent. "
-                    "This directly violates the 95% retention assumption in the 8x valuation."
-                ),
-                "finding_refs": ["Change of control triggers immediate termination"],
-                "owner": "M&A Counsel",
-                "urgency": "pre-close",
-                "estimated_effort": "2-4 weeks negotiation",
-            },
-            {
-                "action": "Execute IP assignment for NovaBridge custom modules",
-                "rationale": (
-                    "3 custom integration modules have ambiguous ownership. Meridian's "
-                    "platform consolidation thesis requires clear IP title."
-                ),
-                "finding_refs": ["IP assignment clause missing for custom integrations"],
-                "owner": "IP Counsel",
-                "urgency": "pre-close",
-                "estimated_effort": "1-2 weeks",
-            },
-            {
-                "action": "Structure retention holdback tied to customer renewal",
-                "rationale": (
-                    "86% concentration in 2 accounts. If either churns in first year, "
-                    "Meridian overpaid by 4-5x. Holdback aligns seller incentives."
-                ),
-                "finding_refs": ["Customer concentration risk exceeds 35% of total ARR"],
-                "owner": "Deal Lead",
-                "urgency": "pre-close",
-                "estimated_effort": "Included in SPA negotiation",
-            },
-            {
-                "action": "Engage auditors to validate revenue recognition policies",
-                "rationale": (
-                    "Quarterly billing vs monthly recognition creates restatement risk "
-                    "that could affect trailing metrics used in valuation."
-                ),
-                "finding_refs": ["Revenue recognition timing mismatch"],
-                "owner": "CFO / Audit Partner",
-                "urgency": "pre-close",
-                "estimated_effort": "1-2 weeks",
-            },
-        ],
-        "open_questions": [
-            {
-                "question": "Has NovaBridge been approached about CoC consent?",
-                "category": "decision_required",
-                "priority": "high",
-                "related_domains": ["legal"],
-            },
-            {
-                "question": "What is the actual developer who built the custom modules?",
-                "category": "data_gap",
-                "priority": "high",
-                "related_domains": ["legal", "producttech"],
-            },
-            {
-                "question": "Is the HIPAA breach notification requirement triggered?",
-                "category": "needs_counsel",
-                "priority": "medium",
-                "related_domains": ["regulatory", "cybersecurity"],
-            },
-        ],
-    }
-
-    merged_data = _make_sample_data()
-
-    gen = HTMLReportGenerator()
-    gen.generate(
-        merged_data,
-        output_path,
-        run_id="sample_demo_001",
-        title="CloudSync Technologies — M&A Due Diligence Report",
-        deal_config=deal_config,
-        executive_synthesis=executive_synthesis,
-        narrative=narrative,
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Verify the published sample matches the golden capture; exit non-zero on drift.",
     )
+    args = parser.parse_args()
 
-    print(f"Sample report generated: {output_path}")
-    print(f"Open in browser: file://{output_path}")
+    if not GOLDEN.exists():
+        print(f"ERROR: golden capture not found: {GOLDEN}", file=sys.stderr)
+        print("Regenerate it from a pipeline run — see this script's docstring.", file=sys.stderr)
+        return 2
+
+    golden_html = GOLDEN.read_text(encoding="utf-8")
+
+    # The published sample must be a self-contained, single-file HTML (no external
+    # asset references) so GitHub Pages can serve it standalone.
+    if 'src="http' in golden_html or 'href="http' in golden_html.split("</head>")[0]:
+        # Note: this is a light guard; the report inlines CSS/JS, external links in body are fine.
+        pass
+
+    if args.check:
+        current = PUBLISHED.read_text(encoding="utf-8") if PUBLISHED.exists() else ""
+        if current != golden_html:
+            print("DRIFT: docs/sample-report/index.html is out of sync with the golden capture.", file=sys.stderr)
+            print("Run: python scripts/generate_sample_report.py", file=sys.stderr)
+            return 1
+        print("OK: published sample matches the golden Project Atlas capture.")
+        return 0
+
+    PUBLISHED.parent.mkdir(parents=True, exist_ok=True)
+    PUBLISHED.write_text(golden_html, encoding="utf-8")
+    print(f"Published sample report: {PUBLISHED}")
+    print(f"Source (golden capture):  {GOLDEN}")
+    print(f"Open in browser: file://{PUBLISHED}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

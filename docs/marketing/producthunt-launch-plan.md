@@ -12,7 +12,7 @@ Product Hunt is **not dead, but it rewards a coordinated 24-hour campaign backed
 1. **It's a B2-developer-and-prosumer audience.** PH works best for self-serve tools tech people can try in minutes. Our **developer story** (open-source, `pip install`, Docker, forensic AI-agent architecture) is the PH-native hook. The **M&A-professional story** is the depth, but it converts better on LinkedIn/legal channels (Artificial Lawyer, LawNext, r/legaltech — see the broader launch plan in project memory).
 2. **We are a free, open-source project with no signup funnel.** That changes our goal. We are **not** optimizing trial signups — we optimize **GitHub stars, `pip`/Docker installs, newsletter/secondary-channel reach, and durable social proof** (the "Product of the Day" badge + DR-91 backlink). Frame success accordingly.
 
-**Our starting position (verify before launch):** 37★, 8 forks, repo created Feb 2026, currently v1.10.0. Assets already in hand: interactive [sample report], 23-slide [presentation], [demo video] (`demo-v1.6-hq.mp4`), full logo set, social preview. This is a strong asset base — most of the "Week 2" work is *done*.
+**Our starting position (verify before launch):** 37★, 8 forks, repo created Feb 2026, currently v1.10.0. Assets already in hand: interactive [sample report], 23-slide [presentation], the golden Project Atlas demo + recordings, full logo set, social preview. This is a strong asset base — most of the "Week 2" work is *done*.
 
 ---
 
@@ -82,7 +82,7 @@ From the Unusual/SGL breakdown and corroborated elsewhere — the algorithm weig
 - [ ] **Audit existing assets against PH specs** (we already have most):
   - Logo/thumbnail: square, 240×240+ (have `logo-512.png`, `logo-198.png`). Consider an **animated GIF thumbnail** (<2MB, no blank first frame, animates on hover) — proven to lift feed click-through.
   - Gallery: **4–6 images**, 1270×760+, each = one feature with an embedded caption. Sequence as a mini-walkthrough: *(1) what it is → (2) the 13-agent architecture → (3) a real cited finding → (4) the HTML report verdict → (5) Excel/chat export → (6) `pip install` / Docker one-liner*. Pull from existing `screenshots/` + the sample report.
-  - **Demo video:** we have `demo-v1.6-hq.mp4`. Re-cut to **≤ 2:00**, founder-narrated, show a real run producing a cited finding. Upload to **YouTube (public/unlisted, full link)**. Add captions (many watch muted). Refresh to v1.10 if the UI drifted.
+  - **Demo video:** build from the golden Project Atlas run + the recordings in `recordings/` and the script in `video-brief.md`. Re-cut to **≤ 2:00**, founder-narrated, show the real Atlas run producing the cited cross-domain finding. Upload to **YouTube (public/unlisted, full link)**. Add captions (many watch muted).
 - [ ] **Write & lock the copy** (templates in §7): product name (≤40 char), tagline (≤60 char), description (~260 char), 3 tags (2 broad: `Artificial Intelligence`, `Developer Tools` or `SaaS`; 1 niche: `Legal`/`Finance`), the **maker's first comment**, and the PH-exclusive offer.
 - [ ] **Collect 3–5 testimonials** (specific, named, outcome-focused) — from any early users / beta readers / advisors. Reuse in gallery + first comment + landing.
 - [ ] **Decide the PH-exclusive "offer."** We're free/OSS, so the offer isn't a discount — make it *community value*: e.g. "PH launch = we're taking feature requests live in the comments + first 50 commenters get a personal Loom walkthrough / priority on a good-first-issue / shout-out in release notes." (Meetric's #1 regret was having nothing to offer because they were free — we pre-empt that.)
@@ -106,7 +106,7 @@ From the Unusual/SGL breakdown and corroborated elsewhere — the algorithm weig
 | Description | ~260 chars | draft in §7 |
 | Thumbnail/logo | square, 240×240+, GIF <2MB (no blank 1st frame) | ✅ have `logo-512.png`; GIF = nice-to-have |
 | Gallery | 4–6 imgs @1270×760+, captioned, walkthrough order | ✅ source from `screenshots/` + sample report |
-| Demo video | YouTube link, ≤2 min, founder-narrated, captioned | ⚠️ recut `demo-v1.6-hq.mp4` → YouTube |
+| Demo video | YouTube link, ≤2 min, founder-narrated, captioned | ⚠️ build from Atlas run + `recordings/` + `video-brief.md` → YouTube |
 | Tags | 3 (2 broad + 1 niche) | decide: AI + Dev Tools + Legal |
 | Makers | real, warmed-up accounts | Zohar (+ any contributors) |
 | First comment | story + how + differentiator + offer + question | draft in §7 |
@@ -234,5 +234,5 @@ Synthesized 2026-06-05 from: GojiberryAI #1 guide (Czerny/LinkedIn), Momen #1 ca
 
 [sample report]: https://zoharbabin.github.io/due-diligence-agents/sample-report/
 [presentation]: https://zoharbabin.github.io/due-diligence-agents/marketing/presentation.html
-[demo video]: ../marketing/assets/demo-v1.6-hq.mp4
+[demo video]: ./LAUNCH-ASSETS.md
 [trust-layer article]: ./devto-trust-layer.md

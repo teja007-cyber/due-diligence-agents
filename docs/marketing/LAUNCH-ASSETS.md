@@ -4,6 +4,13 @@ Everything produced for the Product Hunt launch, in one place. Positioning is lo
 (see `producthunt-launch-plan.md`): tagline **"Legal flags a risk. Finance another. We connect and cite."**,
 moat = cross-domain cross-referencing, proof = forensic citation.
 
+> **One golden sample, everywhere.** Project Atlas is now the *single* canonical example across the
+> whole repo — the quickstart (`examples/project-atlas/`), the public sample report
+> (`docs/sample-report/index.html`, regenerated via `scripts/generate_sample_report.py`), the launch
+> demo/recordings, the docs, and a unit guard test (`tests/unit/test_project_atlas_example.py`).
+> The old NovaBridge/Acme quickstart, the hardcoded-mock sample generator, and the NovaBridge-era
+> demo tape/script/showcase/video have been retired.
+
 ## 1. The demo deal — "Project Atlas" (the foundation)
 `examples/project-atlas/` — a 100% synthetic M&A deal engineered so the product's hero
 cross-domain finding is **real and reproducible**, not staged.
