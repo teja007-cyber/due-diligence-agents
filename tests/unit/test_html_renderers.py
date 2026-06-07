@@ -1332,6 +1332,7 @@ class TestMethodologyRenderer:
         html_out = r.render()
         assert "<caption>Agent coverage by domain</caption>" in html_out
 
+
 # ===========================================================================
 # CSS Custom Properties (Issue #113 E1)
 # ===========================================================================
